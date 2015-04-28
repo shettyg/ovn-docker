@@ -18,7 +18,7 @@ This is a multi-tenant, multi-host solution.
 
 In the "overlay" mode, OVN can create a logical network amongst containers
 running on multiple hosts. This is a single-tenant (extendable to multi-tenants
-depending on the security characterstics of the workloads), multi-host
+depending on the security characteristics of the workloads), multi-host
 solution.
 
 For both the modes to work, a user has to install Open vSwitch in each VM/host
@@ -118,7 +118,7 @@ docker run -d --net=container:db0b1ee8227356358f095021a35b6509c8787720473fe7c8a0
 
 This returns the container id.
 
-* You can check the created container interafce, its IP address and MAC address
+* You can check the created container interface, its IP address and MAC address
 by execing into the container. e.g.:
 
 ```
