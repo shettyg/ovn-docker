@@ -427,13 +427,6 @@ def setup_container(args, container_id):
         ovs_vsctl("set bridge %s external_ids:%s_veth=%s"
                     % (bridge, endpoint, veth_outside))
     
-def docker_run(args):
-    # Start the container in advance.
-    command = str(args.command[0])
-    container_id = call_popen(shlex.split(command))
-    print container_id
-    setup_container(args, container_id)
-
 def create_container(args):
     # Start the container in advance.
     id = str(uuid.uuid4()).replace('-', '')
@@ -496,14 +489,6 @@ def main():
     parser_delete_endpoint.add_argument('endpoint', metavar="ENDPOINTUUID",
                                         help="Endpoint UUID")
     parser_delete_endpoint.set_defaults(func=delete_endpoint)
-
-    # Parser for run
-    parser_run = subparsers.add_parser('run',
-                                       help="Insert container interfaces")
-    parser_run.add_argument('--network', action="append",
-                            help="Provide port uuids to attach")
-    parser_run.add_argument('command',  nargs="*", help="The docker run command")
-    parser_run.set_defaults(func=docker_run)
 
     # Parser for container-create
     parser_create_container = subparsers.add_parser('container-create',
