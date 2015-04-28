@@ -213,7 +213,7 @@ def reserve_vlan():
             vlan_set.append(str(vlan))
             reserved_vlan = vlan
             vlans = re.sub(r'[ \[\]\']', '', str(vlan_set))
-            return (reserved_vlan, vlan)
+            return (reserved_vlan, vlans)
 
     if not reserved_vlan:
         sys.exit("No more vlans available on this host") 
@@ -230,7 +230,7 @@ def unreserve_vlan(reserved_vlan):
 
     vlan_set.remove(reserved_vlan)
     vlans = re.sub(r'[ \[\]\']', '', str(vlan_set))
-    ovs_vsctl("br-set-external-id %s vlans %s" % (args.bridge, vlans))
+    ovs_vsctl("br-set-external-id %s vlans %s" % (bridge, vlans))
        
 def create_endpoint(args):
     sanity_check()
@@ -263,7 +263,7 @@ def create_endpoint(args):
 
     mode = get_ovn_mode()
     if mode == "underlay":
-        (reserved_vlan, vlans) = reserve_vlan() 
+        (reserved_vlan, vlans) = reserve_vlan()
 
     try:
         print "creating neutron port."
@@ -325,6 +325,7 @@ def delete_endpoint(args):
 
     try:
         neutron.delete_port(args.endpoint)
+        print "deleted neutron port"
     except Exception as e:
         sys.exit("Failed to delete endpoint.\n(%s)" % str(e))
 
@@ -333,7 +334,7 @@ def delete_endpoint(args):
     if mode == "underlay":
         reserved_vlan = ovs_vsctl("--if-exists get bridge %s "
                                   "external_ids:%s_vlan"
-                                    % (bridge, args.endpoint))
+                                    % (bridge, args.endpoint)).strip('"')
         if not reserved_vlan:
             sys.exit("No vlans associated with the endpoint.")
 
@@ -351,15 +352,124 @@ def delete_endpoint(args):
         ovs_vsctl("del-port %s" %(veth_outside))
         command = "ip link delete %s" % (veth_outside)
         call_popen(shlex.split(command))
+        ovs_vsctl("remove bridge %s external_ids %s_veth"
+                    %(bridge, args.endpoint))
+
+    container = delete_endpoint_usage(args.endpoint)
+    if container:
+        delete_container_usage(container)
+
+def list_endpoints(args):
+    NEUTRON_API_VERSION = "2.0"
+    args = ["port-list"]
+    return NeutronShell(NEUTRON_API_VERSION).run(
+            list(map(encodeutils.safe_decode, args)))
+
+def add_container_usage(container_id):
+    bridge = get_ovn_bridge()
+    val = ovs_vsctl("--if-exists get bridge %s external_ids:container-usage"
+                     % (bridge)).strip('"')
+    if not val:
+        val = "%s:1" %(container_id)
+        ovs_vsctl("set bridge %s external_ids:container-usage=%s"
+                    % (bridge, val))
+    else:
+        container_usage = dict(map(str, x.split(':')) for x in val.split(','))
+        if not container_usage.get(container_id, ''):
+            container_usage[container_id] = 1
+        else:
+            container_usage[container_id] = str(int(container_usage[container_id]) + 1)
+
+        ovs_vsctl("set bridge %s external_ids:container-usage=%s"
+                   %(bridge, str(container_usage).strip('{}').replace(' ', '')))
+
+def delete_container_usage(container_id):
+    bridge = get_ovn_bridge()
+    val = ovs_vsctl("--if-exists get bridge %s external_ids:container-usage"
+                     % (bridge)).strip('"')
+    if val:
+        container_usage = dict(map(str, x.split(':')) for x in val.split(','))
+        val = container_usage.get(container_id, '')
+        if val:
+            count = int(val) - 1
+            if count:
+                container_usage[container_id] = str(count)
+            else:
+                del container_usage[container_id]
+                delete_container(container_id)
+
+            if len(container_usage):
+                ovs_vsctl("set bridge %s external_ids:container-usage=%s"
+                          %(bridge, str(container_usage).strip('{}').replace(' ', '')))
+            else:
+                ovs_vsctl("remove bridge %s external_ids container-usage"
+                           %(bridge))
+
+def set_endpoint_usage(container_id, endpoint):
+    bridge = get_ovn_bridge()
+    val = ovs_vsctl("--if-exists get bridge %s external_ids:endpoint-usage"
+                     % (bridge)).strip('"')
+    if not val:
+        val = "%s:%s" %(endpoint, container_id)
+        ovs_vsctl("set bridge %s  external_ids:endpoint-usage=%s"
+                    %(bridge, val))
+    else:
+        endpoint_usage = dict(map(str, x.split(':')) for x in val.split(','))
+        if not endpoint_usage.get(endpoint, ''):
+            endpoint_usage[endpoint] = container_id
+        else:
+            # Should never have reached here.
+            sys.exit("Endpoint %s already set for container %s"
+                      %(endpoint, container_id))
+        ovs_vsctl("set bridge %s external_ids:endpoint-usage=%s"
+                   %(bridge, str(endpoint_usage).strip('{}').replace(' ', '')))
+
+def delete_endpoint_usage(endpoint):
+    bridge = get_ovn_bridge()
+    container = ""
+    val = ovs_vsctl("--if-exists get bridge %s external_ids:endpoint-usage"
+                    %(bridge)).strip('"')
+    if val:
+        endpoint_usage = dict(map(str, x.split(':')) for x in val.split(','))
+        container = endpoint_usage.get(endpoint, '')
+        if container:
+            del endpoint_usage[endpoint]
+        if len(endpoint_usage) > 0:
+            ovs_vsctl("set bridge %s external_ids:endpoint-usage=%s"
+                      %(bridge, str(endpoint_usage).strip('{}').replace(' ', '')))
+        else:
+            ovs_vsctl("remove bridge %s external_ids endpoint-usage" %(bridge))
+    return container
+
+def get_endpoint_usage(endpoint):
+    bridge = get_ovn_bridge()
+    val = ovs_vsctl("--if-exists get bridge %s external_ids:endpoint-usage"
+                     % (bridge)).strip('"')
+    if not val:
+        return None
+    else:
+        endpoint_usage = dict(map(str, x.split(':')) for x in val.split(','))
+        if not endpoint_usage.get(endpoint, ''):
+            return None
+        else:
+            return endpoint_usage.get(endpoint)
 
 def setup_container(args, container_id):
+    for endpoint in args.network:
+        container = get_endpoint_usage(endpoint)
+        if container:
+            delete_container(container_id)
+            sys.exit("%s already part of container %s" %(endpoint, container))
+
     # Get pid of the container.
     command = "docker inspect -f '{{.State.Pid}}' %s" %(container_id)
     pid = call_popen(shlex.split(command))
-    dst = "/var/run/netns/%s" %(pid)
-    if not os.path.isfile(dst):
+    link_name = "/var/run/netns/%s" %(pid)
+    symlink_create = False
+    if not os.path.isfile(link_name):
         src = "/proc/%s/ns/net" %(pid)
-        os.symlink(src, dst)
+        os.symlink(src, link_name)
+        symlink_create = True
 
     bridge = get_ovn_bridge()
     mode = get_ovn_mode()
@@ -410,7 +520,6 @@ def setup_container(args, container_id):
         
         count = count + 1
 
-
         if mode == "underlay":
             # Attach the outer veth pair to the ovs bridge with vlan
             ovs_vsctl("add-port %s %s tag=%s" %(bridge, veth_outside, vlan))
@@ -426,6 +535,17 @@ def setup_container(args, container_id):
 
         ovs_vsctl("set bridge %s external_ids:%s_veth=%s"
                     % (bridge, endpoint, veth_outside))
+        set_endpoint_usage(container_id, endpoint)
+        add_container_usage(container_id)
+
+    if symlink_create:
+        os.unlink(link_name)
+
+def delete_container(container_id):
+    command = "docker stop %s" %(container_id)
+    call_popen(shlex.split(command))
+    command = "docker rm %s" %(container_id)
+    call_popen(shlex.split(command))
     
 def create_container(args):
     # Start the container in advance.
@@ -489,6 +609,11 @@ def main():
     parser_delete_endpoint.add_argument('endpoint', metavar="ENDPOINTUUID",
                                         help="Endpoint UUID")
     parser_delete_endpoint.set_defaults(func=delete_endpoint)
+
+    # Parser for sub-command endpoint-list
+    parser_delete_network = subparsers.add_parser('endpoint-list',
+                                    help="List all the endpoints")
+    parser_delete_network.set_defaults(func=list_endpoints)
 
     # Parser for container-create
     parser_create_container = subparsers.add_parser('container-create',
