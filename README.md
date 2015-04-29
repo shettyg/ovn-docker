@@ -79,7 +79,7 @@ the IP address is assigned to that network. If a network has already
 been created via Neutron, you can skip this step.
 
 ```
-ovn-container net-create dummy 192.168.1.0/24
+ovn-container net-create ls0 192.168.1.0/24
 ```
 
 The above command returns a uuid for that nework.
@@ -90,10 +90,11 @@ The above command returns a uuid for that nework.
 ovn-container net-list
 ```
 
-* Create a port (or endpoint) in the network 'dummy'
+* Create a port (or endpoint) in the network 'ls0', with an optional port name
+'ls0p0'
 
 ```
-ovn-container endpoint-create dummy
+ovn-container endpoint-create ls0 ls0p0
 ```
 
 The above command returns a uuid for that port. Internally it assigns
@@ -144,7 +145,7 @@ it is deleted automatically.
 * If you do not have a need for the created network, you can delete it with:
 
 ```
-ovn-container net-delete dummy
+ovn-container net-delete ls0
 ```
 
 Running OVN in the overlay mode
