@@ -57,7 +57,7 @@ and route related information to that bridge. For example, assuming that
 your device is 'eth0, you could run:
 
 ```
-ovn-utilities nics-to-bridge eth0
+ovn-integrate nics-to-bridge eth0
 ```
 
 The above command will move the IP address and route information of 'eth0'
