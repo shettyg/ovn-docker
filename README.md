@@ -99,6 +99,12 @@ ovn-container endpoint-create dummy
 The above command returns a uuid for that port. Internally it assigns
 an IP address and mac address for that port.
 
+* View all the created endpoints.
+
+```
+ovn-container endpoint-list
+```
+
 * Create a network container to setup networking with the uuid of the
 endpoint passed as the argument to '--network'. You can add multiple
 endpoints to the container by repeating the '--network' command.
