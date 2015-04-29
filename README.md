@@ -131,6 +131,10 @@ docker exec -it c03e4bd51b0a0b9e39512cda5cbd7c1602c33e2ad2d0c00632250c8caad1b4f2
 ovn-container endpoint-delete 88bb5dd3-2da9-40e2-9b75-a0406980301c
 ```
 
+While deleting the endpoint, if it is noticed that the previously created
+network container does not have any endpoints associated with it anymore,
+it is deleted automatically.
+
 * If you do not have a need for the created network, you can delete it with:
 
 ```
