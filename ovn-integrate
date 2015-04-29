@@ -140,7 +140,7 @@ create_integration_bridge() {
 usage() {
     UTIL=$(basename $0)
     cat << EOF
-${UTIL}: Utilities for OVN integration
+${UTIL}: Utilities for OVN integration in a host.
 usage: ${UTIL} COMMAND
 
 Commands:
