@@ -6,6 +6,15 @@ if [ ! -e "${OVSLIB}" ]; then
     exit 1
 fi
 
+if (ovs-vsctl --version) > /dev/null 2>&1; then :; else
+    log_failure_msg "missing ovs-vsctl, cannot proceed."
+    exit 1
+fi
+
+ovs_vsctl () {
+    ovs-vsctl --timeout=5 "$@"
+}
+
 . ${OVSLIB} || exit 1
 
 save_ip_address() {
@@ -89,7 +98,7 @@ nics_to_bridge() {
         fi
 
         OVSBR="br${iface}"
-        if (ovs-vsctl add-br "${OVSBR}" \
+        if (ovs_vsctl add-br "${OVSBR}" \
                 -- br-set-external-id "${OVSBR}" bridge-id "${OVSBR}"\
                 -- set bridge "${OVSBR}" fail-mode=standalone\
                 -- add-port "${OVSBR}" "${iface}") ; then
@@ -117,6 +126,17 @@ nics_to_bridge() {
     done
 }
 
+create_integration_bridge() {
+    if (ovs_vsctl -- --may-exist add-br br-int\
+            -- br-set-external-id br-int bridge-id br-int\
+            -- set bridge br-int other-config:disable-in-band=true\
+            -- set bridge br-int fail-mode=secure) ; then
+        log_success_msg "successfully created the integration bridge."
+    else
+        log_failure_msg "failed to create the integration bridge."
+    fi
+}
+
 usage() {
     UTIL=$(basename $0)
     cat << EOF
@@ -127,6 +147,8 @@ Commands:
   nics-to-bridge    creates an OVS bridge for each of the nic interfaces
                     provided after this command as arguments.
                     ex: ${UTIL} nics-to-bridge eth0 eth1 eth2
+  create-integration-bridge
+                    creates a OVS integration bridge.
 Options:
   -h, --help        display this help message.
 EOF
@@ -137,17 +159,18 @@ if [ $# -eq 0 ]; then
     usage
 fi
 
-while [ $# -ne 0 ]
-do
-    case $1 in
-        "nics-to-bridge")
-            shift
-            nics_to_bridge "$@"
-            exit 0
-            ;;
-    -h | --help)
-            usage
-            exit 0
-            ;;
-    esac
-done
+case $1 in
+    "nics-to-bridge")
+        shift
+        nics_to_bridge "$@"
+        exit 0
+        ;;
+    "create-integration-bridge")
+        create_integration_bridge
+        exit 0
+        ;;
+-h | --help)
+        usage
+        exit 0
+        ;;
+esac
