@@ -151,4 +151,37 @@ ovn-container net-delete ls0
 Running OVN in the overlay mode
 -------------------------------
 
-TBA
+To better understand OVN's integration with containers in the "overlay"
+mode, this document explains the end to end workflow with an example.
+
+* Start a IPAM container on any host. This container is responsible to
+provide IP address and MAC address for your containers.
+
+```
+docker run -d --net=host --name ipam ovntest/ipam:v0.1
+```
+
+Note down the IP address of the host. This document referes to this IP address
+in the remainder of the document as $IPAM_IP.
+
+* On each host, where you plan to spawn your containers, you will need to
+create an Open vSwitch integration bridge.
+
+```
+ovn-integrate create-integration-bridge
+```
+
+* Initialize OVN for the VM in question.
+
+```
+ovn-container init --bridge br-int --overlay-mode
+```
+
+* You will have to set a couple of environment variables.
+export OS_AUTH_STRATEGY="noauth"
+export OS_URL="http://$IPAM_IP:9696/"
+
+* From here-on the workflow is the same as that for the "underlay" mode
+(as described in the section "Running OVN in the underlay mode"). You
+can use the "net-create", "net-list", "net-delete", "endpoint-create",
+"endpoint-delete", "container-create" commands.

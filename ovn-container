@@ -69,11 +69,10 @@ def sanity_check():
     global username, password, tenant_id, auth_url, auth_strategy, endpoint_url
     global vif_id
 
-    vif_id = os.environ.get('OS_VIF_ID', '')  
-    if not vif_id:
-        sys.exit("env OS_VIF_ID not set")
-    
     if mode == "underlay":
+        vif_id = os.environ.get('OS_VIF_ID', '')
+        if not vif_id:
+            sys.exit("env OS_VIF_ID not set")
         username = os.environ.get('OS_USERNAME', '')
         if not username:
             sys.exit("env OS_USERNAME not set")
@@ -132,7 +131,7 @@ def create_network(args):
         print "creating neutron network"
         if mode == "overlay":
             body = {'network': {'name': args.network,
-                                'tenant_id': "demo",
+                                'tenant_id': "admin",
                                 'admin_state_up': True}}
         else:
             body = {'network': {'name': args.network, 'admin_state_up': True}}
@@ -149,7 +148,17 @@ def create_network(args):
 
     try:
         print "creating neutron subnetwork"
-        body = {'subnet': {'network_id': network_id, 'ip_version': 4, 'cidr': args.subnet, 'name': args.network}}
+        if mode == "overlay":
+            body = {'subnet': {'network_id': network_id,
+                               'tenant_id': "admin",
+                               'ip_version': 4,
+                               'cidr': args.subnet,
+                               'name': args.network}}
+        else:
+            body = {'subnet': {'network_id': network_id,
+                               'ip_version': 4,
+                               'cidr': args.subnet,
+                               'name': args.network}}
         ret = neutron.create_subnet(body)
     except Exception as e:
         neutron.delete_network(network_id)
@@ -270,12 +279,12 @@ def create_endpoint(args):
         if mode == "overlay":
             if args.port_name:
                 body = {'port': {'network_id': network,
-                                 'tenant_id': "demo",
+                                 'tenant_id': "admin",
                                  'name': args.port_name,
                                  'admin_state_up': True}}
             else:
                 body = {'port': {'network_id': network,
-                                 'tenant_id': "demo",
+                                 'tenant_id': "admin",
                                  'admin_state_up': True}}
         else:
             if args.port_name:
@@ -300,14 +309,14 @@ def create_endpoint(args):
             unreserve_vlan(reserved_vlan)
         sys.exit("Failed in neutron api call. \n (%s)" % str(e))
 
-    if vlans:
-        bridge = get_ovn_bridge()
-        ovs_vsctl("set bridge %s external_ids:%s_ma=%s"
-                    % (bridge, id, mac_address))
-        ovs_vsctl("set bridge %s external_ids:%s_ip=%s"
-                    % (bridge, id, ip_address))
+    bridge = get_ovn_bridge()
+    ovs_vsctl("set bridge %s external_ids:%s_ma=%s"
+                % (bridge, id, mac_address))
+    ovs_vsctl("set bridge %s external_ids:%s_ip=%s"
+                % (bridge, id, ip_address))
+    if mode == "underlay":
         ovs_vsctl("set bridge %s external_ids:%s_vlan=%s"
-                % (bridge, id, reserved_vlan))
+                    % (bridge, id, reserved_vlan))
         ovs_vsctl("set bridge %s external-ids:vlans=%s" % (bridge, vlans))
     print id
 
@@ -341,10 +350,11 @@ def delete_endpoint(args):
         unreserve_vlan(reserved_vlan)
         ovs_vsctl("--if-exists remove bridge %s external_ids %s_vlan"
                     % (bridge, args.endpoint))
-        ovs_vsctl("--if-exists remove bridge %s external_ids %s_ma"
-                    % (bridge, args.endpoint))
-        ovs_vsctl("--if-exists remove bridge %s external_ids %s_ip"
-                    % (bridge, args.endpoint))
+
+    ovs_vsctl("--if-exists remove bridge %s external_ids %s_ma"
+                % (bridge, args.endpoint))
+    ovs_vsctl("--if-exists remove bridge %s external_ids %s_ip"
+                % (bridge, args.endpoint))
 
     veth_outside = ovs_vsctl("--if-exists get bridge %s external_ids:%s_veth"
                                 % (bridge, args.endpoint)).strip('"')
@@ -455,11 +465,18 @@ def get_endpoint_usage(endpoint):
             return endpoint_usage.get(endpoint)
 
 def setup_container(args, container_id):
+    bridge = get_ovn_bridge()
     for endpoint in args.network:
         container = get_endpoint_usage(endpoint)
         if container:
             delete_container(container_id)
             sys.exit("%s already part of container %s" %(endpoint, container))
+
+        # Sanity check to see whether the endpoint exists.
+        if not ovs_vsctl("--if-exists get bridge %s external_ids:%s_ma"
+                                %(bridge, endpoint)):
+            delete_container(container_id)
+            sys.exit("endpoint %s does not exist." % (endpoint))
 
     # Get pid of the container.
     command = "docker inspect -f '{{.State.Pid}}' %s" %(container_id)
@@ -471,7 +488,6 @@ def setup_container(args, container_id):
         os.symlink(src, link_name)
         symlink_create = True
 
-    bridge = get_ovn_bridge()
     mode = get_ovn_mode()
     count = 1
     for endpoint in args.network:
@@ -531,7 +547,7 @@ def setup_container(args, container_id):
                       "external_ids:iface-id=%s "
                       "external_ids:vm-id=%s "
                       "external_ids:iface-status=%s "
-                      %(mac_address, endpoint, container_id, "active"))
+                      %(veth_outside, mac_address, endpoint, container_id, "active"))
 
         ovs_vsctl("set bridge %s external_ids:%s_veth=%s"
                     % (bridge, endpoint, veth_outside))
