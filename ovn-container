@@ -545,6 +545,10 @@ def setup_container(args, container_id):
                     %(pid, veth_inside, interface)
         call_popen(shlex.split(command))
 
+        command = "ip netns exec %s ip link set dev %s mtu 1450" \
+                    %(pid, interface)
+        call_popen(shlex.split(command))
+
         command = "ip netns exec %s ip link set dev %s address %s" \
                   %(pid, interface, mac_address)
         call_popen(shlex.split(command))
