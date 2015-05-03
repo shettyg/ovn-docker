@@ -274,6 +274,24 @@ def create_endpoint(args):
         else:
             network = ret['networks'][0]['id']
 
+    try:
+        ret = neutron.show_network(network)
+        subnet = ret['network']['subnets'][0]
+        if not subnet:
+            raise RuntimeError("No subnet defined for the network.")
+    except Exception as e:
+        sys.exit("Could not obtain network information.\n(%s)" % str(e))
+
+    try:
+        ret = neutron.show_subnet(subnet)
+        gateway_ip = ret['subnet']['gateway_ip']
+        cidr = ret['subnet']['cidr']
+        netmask = cidr.rsplit('/', 1)[1]
+        if not netmask:
+            sys.exit("Could not obtain netmask for the subnet")
+    except Exception as e:
+        sys.exit("Could not obtain subnet information.\n(%s)" % str(e))
+
     mode = get_ovn_mode()
     if mode == "underlay":
         (reserved_vlan, vlans) = reserve_vlan()
@@ -306,7 +324,7 @@ def create_endpoint(args):
         ret = neutron.create_port(body)
         id = ret['port']['id']
         mac_address = ret['port']['mac_address']
-        ip_address = ret['port']['fixed_ips'][0]['ip_address']
+        ip_address = "%s/%s" %(ret['port']['fixed_ips'][0]['ip_address'], netmask)
 
     except Exception as e:
         if reserved_vlan:
@@ -531,14 +549,14 @@ def setup_container(args, container_id):
                   %(pid, interface, mac_address)
         call_popen(shlex.split(command))
 
+        command = "ip netns exec %s ip link set %s up" \
+                    %(pid, interface)
+        call_popen(shlex.split(command))
+
         command = "ip netns exec %s ip addr add %s dev %s" \
                     %(pid, ip_address, interface)
         call_popen(shlex.split(command))
 
-        command = "ip netns exec %s ip link set %s up" \
-                    %(pid, interface)
-        call_popen(shlex.split(command))
-        
         count = count + 1
 
         if mode == "underlay":
