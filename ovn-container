@@ -58,13 +58,18 @@ def get_ovn_mode():
         
 def get_ovn_bridge():
     return ovs_vsctl("--if-exists get open_vswitch . "
-                    "external_ids:ovn_bridge").strip('"')
+                    "external_ids:ovn-bridge").strip('"')
 
 def sanity_check():
     modes = ["overlay", "underlay"]
     mode = get_ovn_mode()
     if mode not in modes:
         sys.exit("OVN mode not set.")
+
+    bridge = get_ovn_bridge()
+    br_list = ovs_vsctl("list-br").split()
+    if (bridge not in br_list):
+        sys.exit("OVN bridge is not set or seen")
 
     global username, password, tenant_id, auth_url, auth_strategy, endpoint_url
     global vif_id
@@ -89,15 +94,13 @@ def sanity_check():
 
     if mode == "overlay":
         auth_strategy = "noauth"
-        endpoint_url = os.environ.get('OS_URL', '')
-        if not endpoint_url:
-            sys.exit("env OS_URL not set")
-
-    bridge = get_ovn_bridge()
-    br_list = ovs_vsctl("list-br").split()
-    if (bridge not in br_list):
-        sys.exit("OVN bridge is not set or seen")
-     
+        endpoint_ip = ovs_vsctl("br-get-external-id %s ipam"
+                                 %(bridge)).strip('"')
+        if not endpoint_ip:
+            sys.exit("ipam server's ip address not set")
+        endpoint_url = "http://%s:9696/" %(endpoint_ip)
+        os.environ['OS_URL'] = endpoint_url
+        os.environ['OS_AUTH_STRATEGY'] = "noauth"
 
 def init(args):
     br_list = ovs_vsctl("list-br").split()
@@ -105,7 +108,7 @@ def init(args):
         sys.exit("Bridge %s does not exists" %(args.bridge))
     if args.overlay_mode:
         ovs_vsctl("set open_vswitch . external_ids:ovn-mode=overlay "
-                  "external_ids:ovn_bridge=%s" % args.bridge)
+                  "external_ids:ovn-bridge=%s" % args.bridge)
     elif args.underlay_mode:
         ovs_vsctl("set open_vswitch . external_ids:ovn-mode=underlay "
                   "external_ids:ovn_bridge=%s" % args.bridge)
@@ -202,6 +205,7 @@ def delete_network(args):
         sys.exit("Failed in neutron api call. \n (%s)" % str(e))
 
 def list_networks(args):
+    sanity_check()
     NEUTRON_API_VERSION = "2.0"
     args = ["net-list"]
     return NeutronShell(NEUTRON_API_VERSION).run(
@@ -370,6 +374,7 @@ def delete_endpoint(args):
         delete_container_usage(container)
 
 def list_endpoints(args):
+    sanity_check()
     NEUTRON_API_VERSION = "2.0"
     args = ["port-list"]
     return NeutronShell(NEUTRON_API_VERSION).run(

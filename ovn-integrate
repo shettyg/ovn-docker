@@ -137,6 +137,18 @@ create_integration_bridge() {
     fi
 }
 
+set_ipam() {
+    if (ovs_vsctl -- br-exists br-int) ; then
+        if (ovs_vsctl -- br-set-external-id br-int ipam "$1"); then
+            log_success_msg "successfully set the ipam server ip address"
+        else
+            log_failure_msg "failed to set the ipam server ip address"
+        fi
+    else
+        log_failure_msg "integration bridge does not exist."
+    fi
+}
+
 usage() {
     UTIL=$(basename $0)
     cat << EOF
@@ -149,6 +161,7 @@ Commands:
                     ex: ${UTIL} nics-to-bridge eth0 eth1 eth2
   create-integration-bridge
                     creates a OVS integration bridge.
+  set-ipam          set the IP address of the ipam host
 Options:
   -h, --help        display this help message.
 EOF
@@ -167,6 +180,11 @@ case $1 in
         ;;
     "create-integration-bridge")
         create_integration_bridge
+        exit 0
+        ;;
+    "set-ipam")
+        shift
+        set_ipam "$1"
         exit 0
         ;;
 -h | --help)
