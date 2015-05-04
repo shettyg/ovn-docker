@@ -19,7 +19,7 @@ This is a multi-tenant, multi-host solution.
 In the "overlay" mode, OVN can create a logical network amongst containers
 running on multiple hosts. This is a single-tenant (extendable to multi-tenants
 depending on the security characteristics of the workloads), multi-host
-solution.
+solution. In this mode, you do not need a pre-created OpenStack setup.
 
 For both the modes to work, a user has to install Open vSwitch in each VM/host
 that he plans to run his containers.
@@ -53,6 +53,127 @@ it from source with:
 git clone https://github.com/openstack/python-neutronclient.git
 cd python-neutronclient
 python setup.py install
+```
+
+Running OVN in the overlay mode
+-------------------------------
+
+To better understand OVN's integration with containers in the "overlay"
+mode, this document explains the end to end workflow with an example.
+
+* Start a IPAM container on any host. This container is responsible to
+provide IP address and MAC address for your containers. (The ipam
+is actually a containerized OpenStack Neutron, with OVN plugin and daemons).
+So the same apis that work for OpenStack Neutron, work here too.)
+
+```
+docker run -d --net=host --name ipam ovntest/ipam:v0.16 /sbin/ipam
+```
+
+Note down the IP address of the host. This document referes to this IP address
+in the remainder of the document as $IPAM_IP.
+
+* On each host, where you plan to spawn your containers, you will need to
+create an Open vSwitch integration bridge.
+
+```
+ovn-integrate create-integration-bridge
+```
+
+You will also need to set the IPAM server's IP address
+
+```
+ovn-integrate set-ipam $IPAM_IP
+```
+
+You will also need to provide the local IP address
+via which other hosts can reach this host. This IP address
+is referred as the local tunnel endpoint.
+
+```
+ovn-integrate set-tep $LOCAL_IP
+```
+
+And finally, start the ovn-controller.
+```
+ovn-controller --pidfile --detach -vconsole:off --log-file
+```
+
+* Initialize OVN for the VM in question.
+
+```
+ovn-container init --bridge br-int --overlay-mode
+```
+
+* Create a logical network and provide the subnet from which
+the IP address is assigned to that network.
+
+```
+ovn-container net-create ls0 192.168.1.0/24
+```
+
+The above command returns a uuid for that network.
+
+* View all the available networks.
+
+```
+ovn-container net-list
+```
+
+* Create a port (or endpoint) in the network 'ls0', with an optional port name
+'ls0p0'
+
+```
+ovn-container endpoint-create ls0 ls0p0
+```
+
+The above command returns a uuid for that port. Internally it assigns
+an IP address and mac address for that port.
+
+* View all the created endpoints.
+
+```
+ovn-container endpoint-list
+```
+
+* Create a network container to setup networking with the uuid of the
+endpoint passed as the argument to '--network'. You can add multiple
+endpoints to the container by repeating the '--network' command.
+
+```
+ovn-container container-create --network=88bb5dd3-2da9-40e2-9b75-a0406980301c
+```
+
+The above command returns back the created network container id, referred in
+the next step as $NETWORK_CONTAINER. You can enter the container to look
+at the assigned IP and MAC addresses. You can also do any ping tests to
+check network connectivity. To enter the container, run:
+
+```
+docker exec -it $NETWORK_CONTAINER bash
+```
+
+* Start your main container and ask it to attach to the just created
+network container. e.g.:
+
+```
+docker run -d --net=container:$NETWORK_CONTAINER  ubuntu /bin/sh -c "while true; do echo hello world; sleep 1; done"
+```
+
+* After you stop your container, you can delete the created endpoint with:
+
+```
+ovn-container endpoint-delete 88bb5dd3-2da9-40e2-9b75-a0406980301c
+```
+
+While deleting the endpoint, if it is noticed that the previously created
+network container does not have any endpoints associated with it anymore,
+it is deleted automatically.
+
+* If you do not have a need for the created network, you can delete it with:
+
+```
+ovn-container net-delete ls0
 ```
 
 Running OVN in the underlay mode
@@ -101,129 +222,8 @@ DHCP client that was listening on the physical Ethernet interface
 ovn-container init --bridge breth0 --underlay-mode
 ```
 
-* Create a logical network and provide the subnet from which
-the IP address is assigned to that network. If a network has already
-been created via Neutron, you can skip this step.
-
-```
-ovn-container net-create ls0 192.168.1.0/24
-```
-
-The above command returns a uuid for that nework.
-
-* View all the available networks.
-
-```
-ovn-container net-list
-```
-
-* Create a port (or endpoint) in the network 'ls0', with an optional port name
-'ls0p0'
-
-```
-ovn-container endpoint-create ls0 ls0p0
-```
-
-The above command returns a uuid for that port. Internally it assigns
-an IP address and mac address for that port.
-
-* View all the created endpoints.
-
-```
-ovn-container endpoint-list
-```
-
-* Create a network container to setup networking with the uuid of the
-endpoint passed as the argument to '--network'. You can add multiple
-endpoints to the container by repeating the '--network' command.
-
-```
-ovn-container container-create --network=88bb5dd3-2da9-40e2-9b75-a0406980301c
-```
-
-The above command returns back the created network container id.
-
-* Start your main container and ask it to attach to the just created
-network container.
-
-```
-docker run -d --net=container:db0b1ee8227356358f095021a35b6509c8787720473fe7c8a015dfe15460e65c  ubuntu /bin/sh -c "while true; do echo hello world; sleep 1; done"
-```
-
-This returns the container id.
-
-* You can check the created container interface, its IP address and MAC address
-by execing into the container. e.g.:
-
-```
-docker exec -it c03e4bd51b0a0b9e39512cda5cbd7c1602c33e2ad2d0c00632250c8caad1b4f2 bash
-```
-
-* After you stop your container, you can delete the created endpoint with:
-
-```
-ovn-container endpoint-delete 88bb5dd3-2da9-40e2-9b75-a0406980301c
-```
-
-While deleting the endpoint, if it is noticed that the previously created
-network container does not have any endpoints associated with it anymore,
-it is deleted automatically.
-
-* If you do not have a need for the created network, you can delete it with:
-
-```
-ovn-container net-delete ls0
-```
-
-Running OVN in the overlay mode
--------------------------------
-
-To better understand OVN's integration with containers in the "overlay"
-mode, this document explains the end to end workflow with an example.
-
-* Start a IPAM container on any host. This container is responsible to
-provide IP address and MAC address for your containers.
-
-```
-docker run -d --net=host --name ipam ovntest/ipam:v0.16 /sbin/ipam
-```
-
-Note down the IP address of the host. This document referes to this IP address
-in the remainder of the document as $IPAM_IP.
-
-* On each host, where you plan to spawn your containers, you will need to
-create an Open vSwitch integration bridge.
-
-```
-ovn-integrate create-integration-bridge
-```
-
-You will also need to set the IPAM server's IP address
-
-```
-ovn-integrate set-ipam $IPAM_IP
-```
-
-You will also need to provide the local IP address
-via which other hosts can reach this host. This IP address
-is referred as the local tunnel endpoint.
-
-```
-ovn-integrate set-tep $LOCAL_IP
-```
-
-And finally, start the ovn-controller.
-```
-ovn-controller --pidfile --detach -vconsole:off --log-file
-```
-
-* Initialize OVN for the VM in question.
-
-```
-ovn-container init --bridge br-int --overlay-mode
-```
-
-* From here-on the workflow is the same as that for the "underlay" mode
-(as described in the section "Running OVN in the underlay mode"). You
+* From here-on the workflow is the same as that for the "overlay" mode
+(as described in the section "Running OVN in the overlay mode"). You
 can use the "net-create", "net-list", "net-delete", "endpoint-create",
 "endpoint-delete", "container-create" commands.
+
