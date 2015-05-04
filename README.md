@@ -136,12 +136,12 @@ an IP address and mac address for that port.
 ovn-container endpoint-list
 ```
 
-* Create a network container to setup networking with the uuid of the
+* Create a network container to setup networking with the uuid(or name) of the
 endpoint passed as the argument to '--network'. You can add multiple
 endpoints to the container by repeating the '--network' command.
 
 ```
-ovn-container container-create --network=88bb5dd3-2da9-40e2-9b75-a0406980301c
+ovn-container container-create --network=ls0p0
 ```
 
 The above command returns back the created network container id, referred in
@@ -163,7 +163,7 @@ docker run -d --net=container:$NETWORK_CONTAINER  ubuntu /bin/sh -c "while true;
 * After you stop your container, you can delete the created endpoint with:
 
 ```
-ovn-container endpoint-delete 88bb5dd3-2da9-40e2-9b75-a0406980301c
+ovn-container endpoint-delete ls0p0
 ```
 
 While deleting the endpoint, if it is noticed that the previously created

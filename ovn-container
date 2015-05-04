@@ -117,7 +117,7 @@ def init(args):
         sys.exit("Atleast one of --overlay-mode or --underlay-mode "
                  "has to be specified")
 
-def create_network(args):
+def neutron_login():
     sanity_check()
     try:
         neutron = client.Client(username=username,
@@ -127,8 +127,11 @@ def create_network(args):
                                 endpoint_url=endpoint_url,
                                 auth_strategy=auth_strategy)
     except Exception as e:
-        sys.exit("Failed to create network.\n(%s)" % str(e))
+        sys.exit("Failed to login into Neutron.\n(%s)" % str(e))
+    return neutron
 
+def create_network(args):
+    neutron = neutron_login()
     mode = get_ovn_mode()
 
     try:
@@ -170,34 +173,32 @@ def create_network(args):
 
     print network_id
 
-def delete_network(args):
-    sanity_check()
+def get_networkuuid_by_name(neutron, name):
     try:
-        neutron = client.Client(username=username,
-                                password=password,
-                                tenant_id=tenant_id,
-                                auth_url=auth_url,
-                                endpoint_url=endpoint_url,
-                                auth_strategy=auth_strategy)
-    except Exception as e:
-        sys.exit("Failed to delete network.\n(%s)" % str(e))
-
-    try:
-        id = uuid.UUID(args.network.replace('-', ''), version=4)
-        network = args.network
+        id = uuid.UUID(name.replace('-', ''), version=4)
+        network = name
     except Exception as e:
         id = 0
 
     if not id:
-        param = {'fields': 'id', 'name': args.network}
+        param = {'fields': 'id', 'name': name}
         ret = neutron.list_networks(**param)
         if len(ret['networks']) > 1:
-            sys.exit("More than one network for the given name, "
-                             "provide uuid instead.")
+            sys.stderr.write("More than one network for the given name, "
+                             "provide uuid instead.\n")
+            network = None
         elif len(ret['networks']) == 0:
-            sys.exit("No network with the given name")
+            sys.stderr.write("No network with the given name\n")
+            network = None
         else:
             network = ret['networks'][0]['id']
+    return network
+
+def delete_network(args):
+    neutron = neutron_login()
+    network = get_networkuuid_by_name(neutron, args.network)
+    if not network:
+        sys.exit("Failed to get network by name")
             
     try:
         print "deleting neutron network"
@@ -247,33 +248,11 @@ def unreserve_vlan(reserved_vlan):
     ovs_vsctl("br-set-external-id %s vlans %s" % (bridge, vlans))
        
 def create_endpoint(args):
-    sanity_check()
-    try:
-        neutron = client.Client(username=username,
-                                password=password,
-                                tenant_id=tenant_id,
-                                auth_url=auth_url,
-                                endpoint_url=endpoint_url,
-                                auth_strategy=auth_strategy)
-    except Exception as e:
-        sys.exit("Failed to create endpoint.\n(%s)" % str(e))
+    neutron = neutron_login()
 
-    try:
-        id = uuid.UUID(args.network.replace('-', ''), version=4)
-        network = args.network
-    except Exception as e:
-        id = 0
-
-    if not id:
-        param = {'fields': 'id', 'name': args.network}
-        ret = neutron.list_networks(**param)
-        if len(ret['networks']) > 1:
-            sys.exit("More than one network for the given name, "
-                             "provide uuid instead.")
-        elif len(ret['networks']) == 0:
-            sys.exit("No network with the given name")
-        else:
-            network = ret['networks'][0]['id']
+    network = get_networkuuid_by_name(neutron, args.network)
+    if not network:
+        sys.exit("Failed to get network by name")
 
     try:
         ret = neutron.show_network(network)
@@ -343,20 +322,36 @@ def create_endpoint(args):
         ovs_vsctl("set bridge %s external-ids:vlans=%s" % (bridge, vlans))
     print id
 
-def delete_endpoint(args):
-    sanity_check()
+def get_endpointuuid_by_name(neutron, name):
     try:
-        neutron = client.Client(username=username,
-                                password=password,
-                                tenant_id=tenant_id,
-                                auth_url=auth_url,
-                                endpoint_url=endpoint_url,
-                                auth_strategy=auth_strategy)
+        id = uuid.UUID(name.replace('-', ''), version=4)
+        endpoint = name
     except Exception as e:
-        sys.exit("Failed to delete endpoint.\n(%s)" % str(e))
+        id = 0
+
+    if not id:
+        param = {'fields': 'id', 'name': name}
+        ret = neutron.list_ports(**param)
+        if len(ret['ports']) > 1:
+            sys.stderr.write("More than one endpoint for the given name, "
+                             "provide uuid instead.\n")
+            endpoint = None
+        elif len(ret['ports']) == 0:
+            sys.stderr.write("No endpoint with the given name.\n")
+            endpoint = None
+        else:
+            endpoint = ret['ports'][0]['id']
+    return endpoint
+
+def delete_endpoint(args):
+    neutron = neutron_login()
+
+    endpoint = get_endpointuuid_by_name(neutron, args.endpoint)
+    if not endpoint:
+        sys.exit("Failed to get endpoint by name")
 
     try:
-        neutron.delete_port(args.endpoint)
+        neutron.delete_port(endpoint)
         print "deleted neutron port"
     except Exception as e:
         sys.exit("Failed to delete endpoint.\n(%s)" % str(e))
@@ -366,29 +361,29 @@ def delete_endpoint(args):
     if mode == "underlay":
         reserved_vlan = ovs_vsctl("--if-exists get bridge %s "
                                   "external_ids:%s_vlan"
-                                    % (bridge, args.endpoint)).strip('"')
+                                    % (bridge, endpoint)).strip('"')
         if not reserved_vlan:
             sys.exit("No vlans associated with the endpoint.")
 
         unreserve_vlan(reserved_vlan)
         ovs_vsctl("--if-exists remove bridge %s external_ids %s_vlan"
-                    % (bridge, args.endpoint))
+                    % (bridge, endpoint))
 
     ovs_vsctl("--if-exists remove bridge %s external_ids %s_ma"
-                % (bridge, args.endpoint))
+                % (bridge, endpoint))
     ovs_vsctl("--if-exists remove bridge %s external_ids %s_ip"
-                % (bridge, args.endpoint))
+                % (bridge, endpoint))
 
     veth_outside = ovs_vsctl("--if-exists get bridge %s external_ids:%s_veth"
-                                % (bridge, args.endpoint)).strip('"')
+                                % (bridge, endpoint)).strip('"')
     if veth_outside:
         ovs_vsctl("del-port %s" %(veth_outside))
         command = "ip link delete %s" % (veth_outside)
         call_popen(shlex.split(command))
         ovs_vsctl("remove bridge %s external_ids %s_veth"
-                    %(bridge, args.endpoint))
+                    %(bridge, endpoint))
 
-    container = delete_endpoint_usage(args.endpoint)
+    container = delete_endpoint_usage(endpoint)
     if container:
         delete_container_usage(container)
 
@@ -490,17 +485,24 @@ def get_endpoint_usage(endpoint):
 
 def setup_container(args, container_id):
     bridge = get_ovn_bridge()
+    endpoints = []
+    neutron = neutron_login()
     for endpoint in args.network:
         container = get_endpoint_usage(endpoint)
         if container:
             delete_container(container_id)
             sys.exit("%s already part of container %s" %(endpoint, container))
 
-        # Sanity check to see whether the endpoint exists.
-        if not ovs_vsctl("--if-exists get bridge %s external_ids:%s_ma"
-                                %(bridge, endpoint)):
+        # Sanity check to see whether the endpoint exists on this host.
+        endpoint_id = get_endpointuuid_by_name(neutron, endpoint)
+        if not endpoint_id:
             delete_container(container_id)
-            sys.exit("endpoint %s does not exist." % (endpoint))
+            sys.exit("Failed to get endpoint %s by name" %(endpoint))
+        if not ovs_vsctl("--if-exists get bridge %s external_ids:%s_ma"
+                                %(bridge, endpoint_id)):
+            delete_container(container_id)
+            sys.exit("endpoint %s was not created on this host." % (endpoint))
+        endpoints.append(endpoint_id)
 
     # Get pid of the container.
     command = "docker inspect -f '{{.State.Pid}}' %s" %(container_id)
@@ -514,7 +516,7 @@ def setup_container(args, container_id):
 
     mode = get_ovn_mode()
     count = 1
-    for endpoint in args.network:
+    for endpoint in endpoints:
         mac_address = ovs_vsctl("--if-exists get bridge %s external_ids:%s_ma"
                                 %(bridge, endpoint)).strip('"')
         ip_address = ovs_vsctl("--if-exists get bridge %s external_ids:%s_ip"
@@ -628,8 +630,8 @@ def main():
     # Parser for subcommand net-delete
     parser_delete_network = subparsers.add_parser('net-delete',
                                     help="Delete a network")
-    parser_delete_network.add_argument('network', metavar="NETWORKNAME",
-                                       help="Network name")
+    parser_delete_network.add_argument('network', metavar="NETWORK",
+                                       help="Network name or UUID")
     parser_delete_network.set_defaults(func=delete_network)
 
     # Parser for sub-command net-list
@@ -640,8 +642,8 @@ def main():
     # Parser for endpoint-create
     parser_create_endpoint = subparsers.add_parser('endpoint-create',
                                     help="Create a endpoint for a network")
-    parser_create_endpoint.add_argument('network', metavar="NETWORKUUID",
-                                        help="Network UUID")
+    parser_create_endpoint.add_argument('network', metavar="NETWORK",
+                                        help="Network name or UUID")
     parser_create_endpoint.add_argument('port_name', nargs='?',
                                         metavar="ENDPOINTNAME",
                                         help="endpoint name")
@@ -650,8 +652,8 @@ def main():
     # Parser for endpoint-delete
     parser_delete_endpoint = subparsers.add_parser('endpoint-delete',
                                     help="Delete endpoint.")
-    parser_delete_endpoint.add_argument('endpoint', metavar="ENDPOINTUUID",
-                                        help="Endpoint UUID")
+    parser_delete_endpoint.add_argument('endpoint', metavar="ENDPOINT",
+                                        help="Endpoint name or UUID")
     parser_delete_endpoint.set_defaults(func=delete_endpoint)
 
     # Parser for sub-command endpoint-list
@@ -663,7 +665,7 @@ def main():
     parser_create_container = subparsers.add_parser('container-create',
                                        help="Create a network container.")
     parser_create_container.add_argument('--network', action="append",
-                            help="Provide port uuids to attach")
+                            help="Provide endpoints to attach")
     parser_create_container.set_defaults(func=create_container)
 
     args = parser.parse_args()
