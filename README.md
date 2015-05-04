@@ -177,6 +177,14 @@ You will also need to set the IPAM server's IP address
 ovn-integrate set-ipam $IPAM_IP
 ```
 
+And finally, you will need to provide the local IP address
+via which other hosts can reach this host. This IP address
+is referred as the local tunnel endpoint.
+
+```
+ovn-integrate set-tep $LOCAL_IP
+```
+
 * Initialize OVN for the VM in question.
 
 ```

@@ -146,6 +146,14 @@ set_ipam() {
     fi
 }
 
+set_tep() {
+    if (ovs_vsctl -- set Open_vSwitch . external_ids:ovn-encap-ip="$1"); then
+        log_success_msg "successfully set the local tunnel endpoint"
+    else
+        log_failure_msg "failed to set the local tunnel endpoint"
+    fi
+}
+
 usage() {
     UTIL=$(basename $0)
     cat << EOF
@@ -159,6 +167,7 @@ Commands:
   create-integration-bridge
                     creates a OVS integration bridge.
   set-ipam          set the IP address of the ipam host
+  set-tep           set the local tunnel-endpoint
 Options:
   -h, --help        display this help message.
 EOF
@@ -182,6 +191,11 @@ case $1 in
     "set-ipam")
         shift
         set_ipam "$1"
+        exit 0
+        ;;
+    "set-tep")
+        shift
+        set_tep "$1"
         exit 0
         ;;
 -h | --help)
