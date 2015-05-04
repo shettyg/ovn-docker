@@ -63,7 +63,7 @@ mode, this document explains the end to end workflow with an example.
 
 * Start a IPAM container on any host. This container is responsible to
 provide IP address and MAC address for your containers. (The ipam
-is actually a containerized OpenStack Neutron, with OVN plugin and daemons).
+is actually a containerized OpenStack Neutron, with OVN plugin and daemons.
 So the same apis that work for OpenStack Neutron, work here too.)
 
 ```
