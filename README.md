@@ -158,7 +158,7 @@ mode, this document explains the end to end workflow with an example.
 provide IP address and MAC address for your containers.
 
 ```
-docker run -d --net=host --name ipam ovntest/ipam:v0.14 /sbin/ipam
+docker run -d --net=host --name ipam ovntest/ipam:v0.16 /sbin/ipam
 ```
 
 Note down the IP address of the host. This document referes to this IP address
