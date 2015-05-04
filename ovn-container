@@ -32,6 +32,8 @@ tenant_id=""
 auth_url=""
 auth_strategy = ""
 endpoint_url = ""
+ovn_bridge = ""
+ovn_mode = ""
 
 def call_popen(cmd):
     child = subprocess.Popen(cmd, stdout=subprocess.PIPE)
@@ -54,11 +56,18 @@ def ovs_vsctl(args):
     return call_prog("ovs-vsctl", shlex.split(args))
 
 def get_ovn_mode():
-    return ovs_vsctl("--if-exists get open_vswitch . external_ids:ovn-mode")
+    global ovn_mode
+    if not ovn_mode:
+        ovn_mode = ovs_vsctl("--if-exists get open_vswitch . "
+                             "external_ids:ovn-mode")
+    return ovn_mode
         
 def get_ovn_bridge():
-    return ovs_vsctl("--if-exists get open_vswitch . "
-                    "external_ids:ovn-bridge").strip('"')
+    global ovn_bridge
+    if not ovn_bridge:
+        ovn_bridge = ovs_vsctl("--if-exists get open_vswitch . "
+                                "external_ids:ovn-bridge").strip('"')
+    return ovn_bridge
 
 def sanity_check():
     modes = ["overlay", "underlay"]
