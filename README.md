@@ -26,7 +26,34 @@ that he plans to run his containers.
 
 Installing Open vSwitch for OVN
 -------------------------------
-TBA
+OVN is currently in development mode and as such there is no released packages
+available for direct installation. You can install it from source with:
+
+```
+git clone https://github.com/openvswitch/ovs.git
+cd ovs
+git checkout -b ovn_local origin/ovn
+./boot.sh
+./configure --prefix=/usr --localstatedir=/var  --sysconfdir=/etc --enable-ssl --with-linux=/lib/modules/`uname -r`/build
+make -j3 
+make install
+cp debian/openvswitch-switch.init /etc/init.d/openvswitch-switch
+insmod ./datapath/linux/openvswitch.ko
+insmod ./datapath/linux/vport-geneve.ko
+/etc/init.d/openvswitch-switch start
+```
+
+Installing Neutron client for OVN
+---------------------------------
+OVN integration with containers uses OpenStack network APIs. On each host where
+you plan to run your containers, install python-neutronclient. You can install
+it from source with:
+
+```
+git clone https://github.com/openstack/python-neutronclient.git
+cd python-neutronclient
+python setup.py install
+```
 
 Running OVN in the underlay mode
 --------------------------------
