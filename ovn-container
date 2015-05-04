@@ -94,8 +94,8 @@ def sanity_check():
 
     if mode == "overlay":
         auth_strategy = "noauth"
-        endpoint_ip = ovs_vsctl("br-get-external-id %s ipam"
-                                 %(bridge)).strip('"')
+        endpoint_ip = ovs_vsctl("get Open_vSwitch . "
+                                "external_ids:ipam").strip('"')
         if not endpoint_ip:
             sys.exit("ipam server's ip address not set")
         endpoint_url = "http://%s:9696/" %(endpoint_ip)
