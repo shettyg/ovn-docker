@@ -61,10 +61,15 @@ Running OVN in the overlay mode
 To better understand OVN's integration with containers in the "overlay"
 mode, this document explains the end to end workflow with an example.
 
-* Start a IPAM container on any host. This container is responsible to
-provide IP address and MAC address for your containers. (The ipam
-is actually a containerized OpenStack Neutron, with OVN plugin and daemons.
-So the same apis that work for OpenStack Neutron, work here too.)
+* Start a IPAM container on one host. This container is responsible to
+provide IP address and MAC address for your containers and acts as
+a central point for your OVN system.
+(The ipam is actually a containerized OpenStack Neutron, with OVN plugin
+and daemons.  So the same apis that work for OpenStack Neutron, work here too.
+The container runs mysql, rabbitmq and OVS daemons. Since the command
+below asks you to run the container with '--net=host', it is ideal
+if you do not have mysql, rabbitmq and OVS daemons running in the
+host already.)
 
 ```
 docker run -d --net=host --name ipam ovntest/ipam:v0.16 /sbin/ipam
