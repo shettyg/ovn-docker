@@ -543,6 +543,9 @@ def setup_container(args, container_id):
             sys.exit("endpoint %s was not created on this host." % (endpoint))
         endpoints.append(endpoint_id)
 
+    if not os.path.exists("/var/run/netns"):
+        os.makedirs("/var/run/netns")
+
     # Get pid of the container.
     command = "docker inspect -f '{{.State.Pid}}' %s" % (container_id)
     pid = call_popen(shlex.split(command))
