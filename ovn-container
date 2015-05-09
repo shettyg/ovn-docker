@@ -127,7 +127,7 @@ def init(args):
                   "external_ids:ovn-encap-type=geneve" % args.bridge)
     elif args.underlay_mode:
         ovs_vsctl("set open_vswitch . external_ids:ovn-mode=underlay "
-                  "external_ids:ovn_bridge=%s" % args.bridge)
+                  "external_ids:ovn-bridge=%s" % args.bridge)
     else:
         sys.exit("Atleast one of --overlay-mode or --underlay-mode "
                  "has to be specified")
