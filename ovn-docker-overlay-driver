@@ -1,0 +1,432 @@
+#! /usr/bin/python
+# Copyright (C) 2015 Nicira, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at:
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import netaddr
+import os
+import shlex
+import subprocess
+import sys
+import uuid
+from neutronclient.v2_0 import client
+from flask import Flask, jsonify
+from flask import request, abort
+
+app = Flask(__name__)
+
+AUTH_STRATEGY = ""
+ENDPOINT_URL = ""
+OVN_BRIDGE = "br-int"
+
+
+def call_popen(cmd):
+    child = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    output = child.communicate()
+    if child.returncode:
+        raise RuntimeError("Fatal error executing %s" % (cmd))
+    if len(output) == 0 or output[0] == None:
+        output = ""
+    else:
+        output = output[0].strip()
+    return output
+
+
+def call_prog(prog, args_list):
+    cmd = [prog, "-vconsole:off"] + args_list
+    return call_popen(cmd)
+
+
+def ovs_vsctl(args):
+    return call_prog("ovs-vsctl", shlex.split(args))
+
+
+def sanity_check():
+    br_list = ovs_vsctl("list-br").split()
+    if OVN_BRIDGE not in br_list:
+        raise RuntimeError("OVN bridge is not seen")
+
+    global AUTH_STRATEGY, ENDPOINT_URL
+
+    AUTH_STRATEGY = "noauth"
+    endpoint_ip = ovs_vsctl("get Open_vSwitch . "
+                            "external_ids:ipam").strip('"')
+    if not endpoint_ip:
+        raise RuntimeError("ipam server's ip address not set")
+    ENDPOINT_URL = "http://%s:9696/" % (endpoint_ip)
+    os.environ['OS_URL'] = ENDPOINT_URL
+    os.environ['OS_AUTH_STRATEGY'] = "noauth"
+
+
+def init():
+    br_list = ovs_vsctl("list-br").split()
+    if OVN_BRIDGE not in br_list:
+        sys.exit("Bridge %s does not exists" % (OVN_BRIDGE))
+    ovs_vsctl("set open_vswitch . external_ids:ovn-bridge=%s "
+              "external_ids:ovn-encap-type=geneve" % OVN_BRIDGE)
+
+
+def neutron_login():
+    try:
+        sanity_check()
+        neutron = client.Client(endpoint_url=ENDPOINT_URL,
+                                auth_strategy=AUTH_STRATEGY)
+    except Exception as e:
+        raise RuntimeError("Failed to login into Neutron(%s)" % str(e))
+    return neutron
+
+
+def get_networkuuid_by_name(neutron, name):
+    try:
+        uid = uuid.UUID(name.replace('-', ''), version=4)
+        network = name
+    except Exception as e:
+        uid = 0
+
+    if not uid:
+        param = {'fields': 'id', 'name': name}
+        ret = neutron.list_networks(**param)
+        if len(ret['networks']) > 1:
+            sys.stderr.write("More than one network for the given name, "
+                             "provide uuid instead.\n")
+            network = None
+        elif len(ret['networks']) == 0:
+            sys.stderr.write("No network with the given name\n")
+            network = None
+        else:
+            network = ret['networks'][0]['id']
+    return network
+
+
+# curl -i -H 'Content-Type: application/json' -X POST -d
+# '{"nid": "ls0", "labels:subnet" : "192.168.1.0/24"}
+# http://localhost:5000/network/api/createnetwork
+@app.route('/network/api/createnetwork', methods=['POST'])
+def create_network():
+    if not request.json:
+        abort(400)
+
+    # nid will have docker generated network uuid and it
+    # becomes 'name' in a neutron network record.
+    network = request.json.get("nid", "")
+    if not network:
+        abort(400)
+
+    subnet = request.json.get("labels:subnet", "")
+    if not subnet:
+        abort(400)
+
+    try:
+        neutron = neutron_login()
+    except Exception as e:
+        error = "%s" % (str(e))
+        return jsonify({'error': error})
+
+    try:
+        print "creating neutron network"
+        body = {'network': {'name': network,
+                            'tenant_id': "admin",
+                            'admin_state_up': True}}
+        ret = neutron.create_network(body)
+        network_id = ret['network']['id']
+    except Exception as e:
+        error = "Failed in neutron api call (%s)" % str(e)
+        return jsonify({'error': error})
+
+    try:
+        netaddr.IPNetwork(subnet)
+    except Exception as e:
+        neutron.delete_network(network_id)
+        error = "Invalid subnet specified."
+        return jsonify({'error': error})
+
+    try:
+        print "creating neutron subnetwork"
+        body = {'subnet': {'network_id': network_id,
+                           'tenant_id': "admin",
+                           'ip_version': 4,
+                           'cidr': subnet,
+                           'name': network}}
+        ret = neutron.create_subnet(body)
+    except Exception as e:
+        neutron.delete_network(network_id)
+        error = "Failed in neutron api call (%s)" % str(e)
+        return jsonify({'error': error})
+
+    return '', 201
+
+
+# curl -i -H 'Content-Type: application/json' -X POST -d
+# '{"nid": "ls0"}'
+# http://localhost:5000/network/api/deletenetwork
+@app.route('/network/api/deletenetwork', methods=['POST'])
+def delete_network():
+    if not request.json:
+        abort(400)
+
+    # nid will have docker generated network uuid and
+    # it exists as 'name' in a neutron network record.
+    nid = request.json.get("nid", "")
+    if not nid:
+        abort(400)
+
+    try:
+        neutron = neutron_login()
+    except Exception as e:
+        error = "%s" % (str(e))
+        return jsonify({'error': error})
+
+    network = get_networkuuid_by_name(neutron, nid)
+    if not network:
+        error = "Failed to get neutron record for (%s)" % (nid)
+        return jsonify({'error': error})
+
+    try:
+        print "deleting neutron network"
+        neutron.delete_network(network)
+    except Exception as e:
+        error = "Failed in neutron api call (%s)" % str(e)
+        return jsonify({'error': error})
+
+    return '', 200
+
+
+def get_endpointuuid_by_name(neutron, name):
+    try:
+        uid = uuid.UUID(name.replace('-', ''), version=4)
+        endpoint = name
+    except Exception as e:
+        uid = 0
+
+    if not uid:
+        param = {'fields': 'id', 'name': name}
+        ret = neutron.list_ports(**param)
+        if len(ret['ports']) > 1:
+            sys.stderr.write("More than one endpoint for the given name, "
+                             "provide uuid instead.\n")
+            endpoint = None
+        elif len(ret['ports']) == 0:
+            sys.stderr.write("No endpoint with the given name.\n")
+            endpoint = None
+        else:
+            endpoint = ret['ports'][0]['id']
+    return endpoint
+
+
+# curl -i -H 'Content-Type: application/json' -X POST -d
+# '{"nid": "ls0", "eid" : "ls0p0"}'
+# http://localhost:5000/network/api/createendpoint
+@app.route('/network/api/createendpoint', methods=['POST'])
+def create_endpoint():
+    if not request.json:
+        abort(400)
+
+    nid = request.json.get("nid", "")
+    if not nid:
+        abort(400)
+
+    eid = request.json.get("eid", "")
+    if not eid:
+        abort(400)
+
+    try:
+        neutron = neutron_login()
+    except Exception as e:
+        error = "%s" % (str(e))
+        return jsonify({'error': error})
+
+    network = get_networkuuid_by_name(neutron, nid)
+    if not network:
+        error = "Failed to get neutron network record for (%s)" % (nid)
+        return jsonify({'error': error})
+
+    try:
+        ret = neutron.show_network(network)
+        subnet = ret['network']['subnets'][0]
+        if not subnet:
+            raise RuntimeError("No subnet defined for the network.")
+    except Exception as e:
+        error = "Could not obtain network information.\n(%s)" % (str(e))
+        return jsonify({'error': error})
+
+    try:
+        ret = neutron.show_subnet(subnet)
+        gateway_ip = ret['subnet']['gateway_ip']
+        cidr = ret['subnet']['cidr']
+        netmask = cidr.rsplit('/', 1)[1]
+        if not netmask:
+            raise RuntimeError("No cidr netmask found for subnet")
+    except Exception as e:
+        error = "Could not obtain subnet information (%s)" % (str(e))
+        return jsonify({'error': error})
+
+    try:
+        print "creating neutron port."
+        body = {'port': {'network_id': network,
+                         'tenant_id': "admin",
+                         'name': eid,
+                         'admin_state_up': True}}
+
+        ret = neutron.create_port(body)
+        mac_address = ret['port']['mac_address']
+        ip_address = "%s/%s" \
+                     % (ret['port']['fixed_ips'][0]['ip_address'], netmask)
+
+    except Exception as e:
+        error = "Failed in neutron port creation call (%s)" % (str(e))
+        return jsonify({'error': error})
+
+    veth = eid[0:13] + "_c"
+    # TODO : What to return for eth'X' name inside container (veth_inside)?
+    return jsonify({'ipv4': ip_address, 'veth_outside': veth})
+
+
+# curl -i -H 'Content-Type: application/json' -X POST -d
+# '{"nid": "ls0", "eid" : "ls0p0", "sboxkey" : "46327846378546"}'
+# http://localhost:5000/network/api/join
+@app.route('/network/api/join', methods=['POST'])
+def network_join():
+    if not request.json:
+        abort(400)
+
+    nid = request.json.get("nid", "")
+    if not nid:
+        abort(400)
+
+    eid = request.json.get("eid", "")
+    if not eid:
+        abort(400)
+
+    sboxkey = request.json.get("sboxkey", "")
+    if not sboxkey:
+        abort(400)
+
+    try:
+        neutron = neutron_login()
+    except Exception as e:
+        error = "%s" % (str(e))
+        return jsonify({'error': error})
+
+    endpoint = get_endpointuuid_by_name(neutron, eid)
+    if not endpoint:
+        error = "Failed to get endpoint by name"
+        return jsonify({'error': error})
+
+    try:
+        ret = neutron.show_port(endpoint)
+        mac_address = ret['port']['mac_address']
+    except Exception as e:
+        error = "Failed to get endpoint information (%s)" % (str(e))
+        return jsonify({'error': error})
+
+    veth_outside = eid[0:13] + "_l"
+    veth_inside = eid[0:13] + "_c"
+    command = "ip link add %s type veth peer name %s" \
+                  % (veth_inside, veth_outside)
+    try:
+        call_popen(shlex.split(command))
+    except Exception as e:
+        error = "Failed to create veth pair (%s)" % (str(e))
+        return jsonify({'error': error})
+
+    command = "ip link set dev %s address %s" \
+                  % (veth_inside, mac_address)
+
+    try:
+        call_popen(shlex.split(command))
+    except Exception as e:
+        error = "Failed to set veth mac address (%s)" % (str(e))
+        return jsonify({'error': error})
+
+    try:
+        ovs_vsctl("add-port %s %s" % (OVN_BRIDGE, veth_outside))
+        ovs_vsctl("set interface %s external_ids:attached-mac=%s "
+                  "external_ids:iface-id=%s "
+                  "external_ids:vm-id=%s "
+                  "external_ids:iface-status=%s "
+                  % (veth_outside, mac_address,
+                     endpoint, sboxkey, "active"))
+    except Exception as e:
+        error = "Failed to create a port (%s)" % (str(e))
+        return jsonify({'error': error})
+         
+    return "", 201
+
+# curl -i -H 'Content-Type: application/json' -X POST -d
+# '{"nid": "ls0", "eid" : "ls0p0"}'
+# http://localhost:5000/network/api/deleteendpoint
+@app.route('/network/api/deleteendpoint', methods=['POST'])
+def delete_endpoint():
+    if not request.json:
+        abort(400)
+
+    eid = request.json.get("eid", "")
+    if not eid:
+        abort(400)
+
+    try:
+        neutron = neutron_login()
+    except Exception as e:
+        error = "%s" % (str(e))
+        return jsonify({'error': error})
+
+    endpoint = get_endpointuuid_by_name(neutron, eid)
+    if not endpoint:
+        error = "Failed to get endpoint by name"
+        return jsonify({'error': error})
+
+    try:
+        neutron.delete_port(endpoint)
+        print "deleted neutron port"
+    except Exception as e:
+        error = "Failed to delete endpoint. (%s)" % (str(e))
+        return jsonify({'error': error})
+
+    return "", 200
+
+# curl -i -H 'Content-Type: application/json' -X POST -d
+# '{"nid": "ls0", "eid" : "ls0p0"}'
+# http://localhost:5000/network/api/leave
+@app.route('/network/api/leave', methods=['POST'])
+def network_leave():
+    if not request.json:
+        abort(400)
+
+    nid = request.json.get("nid", "")
+    if not nid:
+        abort(400)
+
+    eid = request.json.get("eid", "")
+    if not eid:
+        abort(400)
+
+    veth_outside = eid[0:13] + "_l"
+    try:
+        ovs_vsctl("--if-exists del-port %s" % (veth_outside))
+    except Exception as e:
+        error = "Failed to delete port (%s)" % (str(e))
+        return jsonify({'error': error})
+
+    command = "ip link delete %s" % (veth_outside)
+    try:
+        call_popen(shlex.split(command))
+    except Exception as e:
+        error = "Failed to delete veth pair (%s)" % (str(e))
+        return jsonify({'error': error})
+
+    return "", 200
+
+if __name__ == '__main__':
+    init()
+    # app.run(host='0.0.0.0')
+    app.run(debug=True)
