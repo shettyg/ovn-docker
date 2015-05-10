@@ -1,7 +1,7 @@
 Integration of OVN with Docker Containers.
 -----------------------------------------
 
-This document described how to use OVN (Open vSwitch virtual network) with
+This document describes how to use OVN (Open vSwitch virtual network) with
 Docker containers.  This document assumes that you installed Docker
 by consulting www.docker.com for instructions.
 
