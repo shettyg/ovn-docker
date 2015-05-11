@@ -46,12 +46,15 @@ insmod ./datapath/linux/vport-geneve.ko
 Installing Neutron client for OVN
 ---------------------------------
 OVN integration with containers uses OpenStack network APIs. On each host where
-you plan to run your containers, install python-neutronclient. You can install
-it from source with:
+you plan to run your containers, install python-neutronclient. For e.g., on
+a Ubuntu 14.04 system, you can install it from source with:
 
 ```
 git clone https://github.com/openstack/python-neutronclient.git
 cd python-neutronclient
+easy_install -U pip
+apt-get install python-dev
+pip install -r requirements.txt
 python setup.py install
 ```
 
