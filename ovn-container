@@ -641,8 +641,7 @@ def delete_container(container_id):
 def create_container(args):
     # Start the container in advance.
     uid = str(uuid.uuid4()).replace('-', '')
-    command = "docker run -d  --net=none --name=network_%s ubuntu " \
-              "/bin/sh -c \"while true; do echo hello world; sleep 1; done\"" \
+    command = "docker run -d  --net=none --name=network_%s ovntest/sleepy" \
               % (uid[0:15])
     container_id = call_popen(shlex.split(command))
     print container_id
