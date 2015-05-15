@@ -64,7 +64,7 @@ Running OVN in the overlay mode
 To better understand OVN's integration with containers in the "overlay"
 mode, this document explains the end to end workflow with an example.
 
-* Start a IPAM container on one host. This container is responsible to
+* Start a IPAM container on a separate host. This container is responsible to
 provide IP address and MAC address for your containers and acts as
 a central point for your OVN system.
 (The ipam is actually a containerized OpenStack Neutron, with OVN plugin
@@ -76,6 +76,16 @@ host already.)
 
 ```
 docker run -d --net=host --name ipam ovntest/ipam:v0.16 /sbin/ipam
+```
+
+Once you start your container, you can do a 'docker logs -f ipam' to see
+whether the ipam container has started properly. You should see a log
+message of the following form to indicate a successfull start.
+
+```
+oslo_messaging._drivers.impl_rabbit [-] Connecting to AMQP server on localhost:5672
+neutron.wsgi [-] (670) wsgi starting up on http://0.0.0.0:9696/
+INFO oslo_messaging._drivers.impl_rabbit [-] Connected to AMQP server on 127.0.0.1:5672
 ```
 
 Note down the IP address of the host. This document referes to this IP address
