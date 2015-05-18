@@ -163,19 +163,21 @@ ovn-container container-create --network=ls0p0
 ```
 
 The above command returns back the created network container id, referred in
-the next step as $NETWORK_CONTAINER. You can enter the container to look
-at the assigned IP and MAC addresses. You can also do any ping tests to
-check network connectivity. To enter the container, run:
-
-```
-docker exec -it $NETWORK_CONTAINER bash
-```
+the next step as $NETWORK_CONTAINER.
 
 * Start your main container and ask it to attach to the just created
 network container. e.g.:
 
 ```
 docker run -d --net=container:$NETWORK_CONTAINER  ubuntu /bin/sh -c "while true; do echo hello world; sleep 1; done"
+```
+
+The above command returns back the CONTAINER_ID. You can enter the container
+to look at the assigned IP and MAC addresses. You can also do any ping tests to
+check network connectivity. To enter the container, run:
+
+```
+docker exec -it $CONTAINER_ID bash
 ```
 
 * After you stop your container, you can delete the created endpoint with:
