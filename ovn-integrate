@@ -97,10 +97,18 @@ nics_to_bridge() {
             continue
         fi
 
+        if [ -e /sys/class/net/"${iface}/address" ]; then
+            mac_address=`cat /sys/class/net/"${iface}"/address`
+        else
+            log_failure_msg "interface ${iface} does not have a mac address."
+            continue
+        fi
+
         OVSBR="br${iface}"
         if (ovs_vsctl add-br "${OVSBR}" \
                 -- br-set-external-id "${OVSBR}" bridge-id "${OVSBR}"\
-                -- set bridge "${OVSBR}" fail-mode=standalone\
+                -- set bridge "${OVSBR}" fail-mode=standalone \
+                   other_config:hwaddr="$mac_address" \
                 -- add-port "${OVSBR}" "${iface}") ; then
             log_success_msg "successfully created OVS bridge ${OVSBR}"
 
