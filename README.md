@@ -250,3 +250,11 @@ ovn-container init --bridge breth0 --underlay-mode
 can use the "net-create", "net-list", "net-delete", "endpoint-create",
 "endpoint-delete", "container-create" commands.
 
+Bugs and Discussions:
+---------------------
+
+Once Docker provides the CLI to integrate with libnetwork, we plan to make
+the necessary changes to the ovn driver and get the code reviewed and added to
+the official Open vSwitch repo. Till then, any questions or discussions can
+be had at: discuss@openvswitch.org
+
