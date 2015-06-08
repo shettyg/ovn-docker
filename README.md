@@ -27,9 +27,11 @@ that he plans to run his containers.
 Installing Open vSwitch for OVN
 -------------------------------
 OVN is currently in development mode and as such there is no released packages
-available for direct installation. You can install it from source with:
+available for direct installation. You can install it from source. For e.g., on
+a Ubuntu 14.04 system, you can install it with:
 
 ```
+sudo apt-get install -y autoconf libtool sparse openssl pkg-config make gcc libssl-dev git
 git clone https://github.com/openvswitch/ovs.git
 cd ovs
 git checkout -b ovn_local origin/ovn
@@ -63,6 +65,7 @@ Running OVN in the overlay mode
 
 To better understand OVN's integration with containers in the "overlay"
 mode, this document explains the end to end workflow with an example.
+(The examples here have been run on a Ubuntu 14.04 machines.)
 
 * Start a IPAM container on a separate host. This container is responsible to
 provide IP address and MAC address for your containers and acts as
