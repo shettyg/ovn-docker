@@ -27,14 +27,16 @@ that he plans to run his containers.
 Installing Open vSwitch for OVN
 -------------------------------
 OVN is currently in development mode and as such there is no released packages
-available for direct installation. You can install it from source. For e.g., on
-a Ubuntu 14.04 system, you can install it with:
+available for direct installation. The installed ipam (described later) and the
+ovn-controller should be based off the same code base. You can install it from
+source using the mentioned commit below. For e.g., on a Ubuntu 14.04 system,
+you can install it with:
 
 ```
 sudo apt-get install -y autoconf libtool sparse openssl pkg-config make gcc libssl-dev git
 git clone https://github.com/openvswitch/ovs.git
 cd ovs
-git checkout -b ovn_local origin/ovn
+git checkout -b ovn_local 767944131928487497579fd48
 ./boot.sh
 ./configure --prefix=/usr --localstatedir=/var  --sysconfdir=/etc --enable-ssl --with-linux=/lib/modules/`uname -r`/build
 make -j3 
@@ -78,7 +80,7 @@ if you do not have mysql, rabbitmq and OVS daemons running in the
 host already.)
 
 ```
-docker run -d --net=host --name ipam ovntest/ipam:v0.18 /sbin/ipam
+docker run -d --net=host --name ipam ovntest/ipam:v0.19 /sbin/ipam
 ```
 
 Once you start your container, you can do a 'docker logs -f ipam' to see
