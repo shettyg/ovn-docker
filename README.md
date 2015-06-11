@@ -44,6 +44,7 @@ make install
 cp debian/openvswitch-switch.init /etc/init.d/openvswitch-switch
 insmod ./datapath/linux/openvswitch.ko
 insmod ./datapath/linux/vport-geneve.ko
+insmod ./datapath/linux/vport-stt.ko
 /etc/init.d/openvswitch-switch start
 ```
 
