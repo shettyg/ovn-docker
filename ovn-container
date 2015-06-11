@@ -123,8 +123,12 @@ def init(args):
         sys.exit("Bridge %s does not exists" % (args.bridge))
     if args.overlay_mode:
         ovs_vsctl("set open_vswitch . external_ids:ovn-mode=overlay "
-                  "external_ids:ovn-bridge=%s "
-                  "external_ids:ovn-encap-type=geneve" % args.bridge)
+                  "external_ids:ovn-bridge=%s" % args.bridge)
+        encap_type = ovs_vsctl("--if-exists get Open_vSwitch . "
+                                "external_ids:ovn-encap-type").strip('"')
+        if not encap_type:
+            ovs_vsctl("set open_vswitch . external_ids:ovn-encap-type=geneve")
+
     elif args.underlay_mode:
         ovs_vsctl("set open_vswitch . external_ids:ovn-mode=underlay "
                   "external_ids:ovn-bridge=%s" % args.bridge)

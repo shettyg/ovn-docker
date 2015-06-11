@@ -162,6 +162,14 @@ set_tep() {
     fi
 }
 
+set_encap_type() {
+    if (ovs_vsctl -- set Open_vSwitch . external_ids:ovn-encap-type="$1"); then
+        log_success_msg "successfully set the encap type"
+    else
+        log_failure_msg "failed to set the encap type"
+    fi
+}
+
 usage() {
     UTIL=$(basename $0)
     cat << EOF
@@ -176,6 +184,7 @@ Commands:
                     creates a OVS integration bridge.
   set-ipam          set the IP address of the ipam host
   set-tep           set the local tunnel-endpoint
+  set-encap-type    set the tunnel encapsulation type
 Options:
   -h, --help        display this help message.
 EOF
@@ -204,6 +213,11 @@ case $1 in
     "set-tep")
         shift
         set_tep "$1"
+        exit 0
+        ;;
+    "set-encap-type")
+        shift
+        set_encap_type "$1"
         exit 0
         ;;
 -h | --help)

@@ -117,6 +117,14 @@ is referred as the local tunnel endpoint.
 ovn-integrate set-tep $LOCAL_IP
 ```
 
+By default, OVN uses Geneve tunnels for overlay. If you prefer to
+use STT tunnels (which are known for high throughput capabilities when
+TSO is turned on in your NICs), you can run the following command.
+
+```
+ovn-integrate set-encap-type stt
+```
+
 And finally, start the ovn-controller.
 ```
 ovn-controller --pidfile --detach -vconsole:off --log-file
