@@ -1,25 +1,26 @@
 # OVN demo
 
 ## Setup
+Clone the repo, enter the vagrant directory and run:
 
     vagrant up
 
 ## Test
 
-Log in to `node1` and run:
+Log in to `node1` (`vagrant ssh node1`) and run:
 
-    sh /vagrant/setup-nw-node1.sh
+    sudo sh /vagrant/setup-nw-node1.sh
 
-Log in to `node2` and run:
+Log in to `node2` (`vagrant ssh node2`) and run:
 
-    sh /vagrant/setup-nw-node2.sh
+    sudo sh /vagrant/setup-nw-node2.sh
 
-Get assigend IP addresses from ports:
+Get assigned IP addresses from ports:
 
-    ovn-container endpoint-list
+    sudo ovn-container endpoint-list
 
 Ping the ports (this should work from both nodes)
 
-    docker exec -it networktest ping -c 3 ping 192.168.1.2
-    docker exec -it networktest ping -c 3 ping 192.168.1.3
+    sudo docker exec -it networktest ping -c 3 192.168.1.2
+    sudo docker exec -it networktest ping -c 3 192.168.1.3
 
