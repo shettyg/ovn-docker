@@ -31,7 +31,7 @@ AUTH_STRATEGY = ""
 ENDPOINT_URL = ""
 OVN_BRIDGE = "br-int"
 PLUGIN_DIR = "/usr/share/docker/plugins"
-PLUGIN_FILE = "/usr/share/docker/plugins/ovn-docker-overlay-driver.spec"
+PLUGIN_FILE = "/usr/share/docker/plugins/openvswitch.spec"
 
 
 def call_popen(cmd):
@@ -82,7 +82,7 @@ def init():
     if OVN_BRIDGE not in br_list:
         sys.exit("Bridge %s does not exists" % (OVN_BRIDGE))
     ovs_vsctl("set open_vswitch . external_ids:ovn-bridge=%s "
-              "external_ids:ovn-encap-type=geneve" % OVN_BRIDGE)
+              "external_ids:ovn-encap-type=stt" % OVN_BRIDGE)
 
     if not os.path.isdir(PLUGIN_DIR):
         sys.exit("No docker plugin directory configured")
@@ -115,24 +115,14 @@ def neutron_login():
 
 
 def get_networkuuid_by_name(neutron, name):
-    try:
-        uid = uuid.UUID(name.replace('-', ''), version=4)
-        network = name
-    except Exception as e:
-        uid = 0
-
-    if not uid:
-        param = {'fields': 'id', 'name': name}
-        ret = neutron.list_networks(**param)
-        if len(ret['networks']) > 1:
-            sys.stderr.write("More than one network for the given name, "
-                             "provide uuid instead.\n")
-            network = None
-        elif len(ret['networks']) == 0:
-            sys.stderr.write("No network with the given name\n")
-            network = None
-        else:
-            network = ret['networks'][0]['id']
+    param = {'fields': 'id', 'name': name}
+    ret = neutron.list_networks(**param)
+    if len(ret['networks']) > 1:
+        raise RuntimeError("More than one network for the given name")
+    elif len(ret['networks']) == 0:
+        network = None
+    else:
+        network = ret['networks'][0]['id']
     return network
 
 
@@ -152,7 +142,9 @@ def create_network():
     if not network:
         abort(400)
 
-    subnet = data['Options']['subnet']
+    # Docker currently does not let you specify additional arguments. But
+    # plans to in the future. Till then every network is 192.168.0.0/16
+    subnet = "192.168.0.0/16"
     if not subnet:
         abort(400)
 
@@ -162,8 +154,19 @@ def create_network():
         error = "%s" % (str(e))
         return jsonify({'Err': error})
 
+    # XXX: Currently, a create-network request from a user on one host ends
+    # up being a create network request in every host.  This is a huge
+    # performance penalty as now we will need to check for the existance
+    # of such a network in every call. So in a 1000 node system, a create
+    # network request from user will have 1000 requests to OVN's IPAM.
     try:
-        print "creating neutron network"
+        if get_networkuuid_by_name(neutron, network):
+            return jsonify({})
+    except Exception as e:
+        error = "%s" % (str(e))
+        return jsonify({'Err': error})
+
+    try:
         body = {'network': {'name': network,
                             'tenant_id': "admin",
                             'admin_state_up': True}}
@@ -181,7 +184,6 @@ def create_network():
         return jsonify({'Err': error})
 
     try:
-        print "creating neutron subnetwork"
         body = {'subnet': {'network_id': network_id,
                            'tenant_id': "admin",
                            'ip_version': 4,
@@ -218,11 +220,9 @@ def delete_network():
 
     network = get_networkuuid_by_name(neutron, nid)
     if not network:
-        error = "Failed to get neutron record for (%s)" % (nid)
-        return jsonify({'Err': error})
+        return jsonify({})
 
     try:
-        print "deleting neutron network"
         neutron.delete_network(network)
     except Exception as e:
         error = "Failed in neutron api call (%s)" % str(e)
@@ -232,24 +232,14 @@ def delete_network():
 
 
 def get_endpointuuid_by_name(neutron, name):
-    try:
-        uid = uuid.UUID(name.replace('-', ''), version=4)
-        endpoint = name
-    except Exception as e:
-        uid = 0
-
-    if not uid:
-        param = {'fields': 'id', 'name': name}
-        ret = neutron.list_ports(**param)
-        if len(ret['ports']) > 1:
-            sys.stderr.write("More than one endpoint for the given name, "
-                             "provide uuid instead.\n")
-            endpoint = None
-        elif len(ret['ports']) == 0:
-            sys.stderr.write("No endpoint with the given name.\n")
-            endpoint = None
-        else:
-            endpoint = ret['ports'][0]['id']
+    param = {'fields': 'id', 'name': name}
+    ret = neutron.list_ports(**param)
+    if len(ret['ports']) > 1:
+        raise RuntimeError("More than one endpoint for the given name")
+    elif len(ret['ports']) == 0:
+        endpoint = None
+    else:
+        endpoint = ret['ports'][0]['id']
     return endpoint
 
 
@@ -369,7 +359,7 @@ def show_endpoint():
         error = "Failed to get endpoint information (%s)" % (str(e))
         return jsonify({'Err': error})
 
-    veth_outside = eid[0:13] + "_l"
+    veth_outside = eid[0:15]
     return jsonify({"Value": {"ip_address": ip_address,
                               "mac_address": mac_address,
                               "veth_outside": veth_outside
@@ -402,12 +392,10 @@ def delete_endpoint():
 
     endpoint = get_endpointuuid_by_name(neutron, eid)
     if not endpoint:
-        error = "Failed to get endpoint by name"
-        return jsonify({'Err': error})
+        return jsonify({})
 
     try:
         neutron.delete_port(endpoint)
-        print "deleted neutron port"
     except Exception as e:
         error = "Failed to delete endpoint. (%s)" % (str(e))
         return jsonify({'Err': error})
@@ -438,6 +426,9 @@ def network_join():
     if not sboxkey:
         abort(400)
 
+    # sboxkey is of the form: /var/run/docker/netns/CONTAINER_ID
+    vm_id = sboxkey.rsplit('/')[-1]
+
     try:
         neutron = neutron_login()
     except Exception as e:
@@ -456,7 +447,7 @@ def network_join():
         error = "Failed to get endpoint information (%s)" % (str(e))
         return jsonify({'Err': error})
 
-    veth_outside = eid[0:13] + "_l"
+    veth_outside = eid[0:15]
     veth_inside = eid[0:13] + "_c"
     command = "ip link add %s type veth peer name %s" \
               % (veth_inside, veth_outside)
@@ -482,14 +473,14 @@ def network_join():
                   "external_ids:vm-id=%s "
                   "external_ids:iface-status=%s "
                   % (veth_outside, mac_address,
-                     endpoint, sboxkey, "active"))
+                     endpoint, vm_id, "active"))
     except Exception as e:
         error = "Failed to create a port (%s)" % (str(e))
         return jsonify({'Err': error})
 
     return jsonify({"InterfaceNames": [{
                                         "SrcName": veth_inside,
-                                        "DstName": "eth"
+                                        "DstPrefix": "eth"
                                        }],
                     "Gateway": "",
                     "GatewayIPv6": "",
@@ -515,7 +506,7 @@ def network_leave():
     if not eid:
         abort(400)
 
-    veth_outside = eid[0:13] + "_l"
+    veth_outside = eid[0:15]
     command = "ip link delete %s" % (veth_outside)
     try:
         call_popen(shlex.split(command))
@@ -533,5 +524,5 @@ def network_leave():
 
 if __name__ == '__main__':
     init()
-    app.run(host='0.0.0.0')
-    # app.run(debug=True)
+    # app.run(host='0.0.0.0')
+    app.run(debug=True)
