@@ -466,6 +466,14 @@ def network_join():
         error = "Failed to set veth mac address (%s)" % (str(e))
         return jsonify({'Err': error})
 
+    command = "ip link set %s up" % (veth_outside)
+
+    try:
+        call_popen(shlex.split(command))
+    except Exception as e:
+        error = "Failed to up the veth interface (%s)" % (str(e))
+        return jsonify({'Err': error})
+
     try:
         ovs_vsctl("add-port %s %s" % (OVN_BRIDGE, veth_outside))
         ovs_vsctl("set interface %s external_ids:attached-mac=%s "
