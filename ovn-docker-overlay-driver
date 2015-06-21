@@ -299,7 +299,6 @@ def create_endpoint():
         return jsonify({'Err': error})
 
     try:
-        print "creating neutron port."
         body = {'port': {'network_id': network,
                          'tenant_id': "admin",
                          'name': eid,
