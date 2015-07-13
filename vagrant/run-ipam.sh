@@ -1,1 +1,1 @@
-docker run -d --net=host --name ipam ovntest/ipam:v0.19 /sbin/ipam
+docker run -d --net=host --name ipam openvswitch/ipam:v2.4.90 /sbin/ipam
