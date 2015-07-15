@@ -21,19 +21,18 @@ Log in to `node1` (`vagrant ssh node1`) and run:
 
 Log in to `node1` (`vagrant ssh node1`) and run:
 
-    sudo sh /vagrant/test3.sh
+    sudo sh /vagrant/test3_node1.sh
 
 Log in to `node2` (`vagrant ssh node2`) and run:
 
-    sudo sh /vagrant/test3.sh
+    sudo sh /vagrant/test3_node2.sh
 
 
-Get assigned IP addresses from ports:
+Ping the ports 
+From node1:
 
-    sudo ovn-container endpoint-list
+    sudo docker exec -it postgres ping mydb.foo
 
-Ping the ports (this should work from both nodes)
-
-    sudo docker exec -it networktest ping -c 3 192.168.1.2
-    sudo docker exec -it networktest ping -c 3 192.168.1.3
+From node2:
+    sudo docker exec -it postgres ping app.foo
 
