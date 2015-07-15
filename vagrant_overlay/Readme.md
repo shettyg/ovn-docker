@@ -34,5 +34,15 @@ From node1:
     sudo docker exec -it postgres ping mydb.foo
 
 From node2:
+
     sudo docker exec -it postgres ping app.foo
 
+To cleanup test3 creations.
+
+From node1:
+
+    sudo sh /vagrant/test3_cleanup_node1.sh
+
+From node2:
+
+    sudo sh /vagrant/test3_cleanup_node2.sh
