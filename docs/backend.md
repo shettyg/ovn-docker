@@ -54,7 +54,7 @@ if you do not have mysql, rabbitmq and OVS daemons running in the
 host already.)
 
 ```
-docker run -d --net=host --name ipam ovntest/ipam:v0.19 /sbin/ipam
+docker run -d --net=host --name ipam openvswitch/ipam:v2.4.90 /sbin/ipam
 ```
 
 Once you start your container, you can do a 'docker logs -f ipam' to see
