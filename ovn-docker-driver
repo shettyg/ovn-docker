@@ -17,8 +17,8 @@ import argparse
 import atexit
 import getpass
 import json
-import netaddr
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -128,6 +128,8 @@ def ovn_init(args):
     if args.underlay_mode:
         if not args.bridge:
             sys.exit("OVS bridge name not provided")
+        global OVN_BRIDGE
+        OVN_BRIDGE = args.bridge
         MODE = "underlay"
         ovn_init_underlay()
     else:
@@ -241,10 +243,11 @@ def delete_network():
 
 def reserve_vlan():
     reserved_vlan = 0
-    vlans = ovs_vsctl("br-get-external-id %s vlans" % OVN_BRIDGE)
+    vlans = ovs_vsctl("--if-exists get Open_vSwitch . "
+                      "external_ids:vlans").strip('"')
     if not vlans:
         reserved_vlan = 1
-        ovs_vsctl("set Open_vSwitch . external_ids:vlans %s" % reserved_vlan)
+        ovs_vsctl("set Open_vSwitch . external_ids:vlans=%s" % reserved_vlan)
         return reserved_vlan
 
     vlan_set = str(vlans).split(',')
@@ -254,7 +257,7 @@ def reserve_vlan():
             vlan_set.append(str(vlan))
             reserved_vlan = vlan
             vlans = re.sub(r'[ \[\]\']', '', str(vlan_set))
-            ovs_vsctl("set Open_vSwitch . external_ids:vlans %s" % vlans)
+            ovs_vsctl("set Open_vSwitch . external_ids:vlans=%s" % vlans)
             return reserved_vlan
 
     if not reserved_vlan:
@@ -262,7 +265,8 @@ def reserve_vlan():
 
 
 def unreserve_vlan(reserved_vlan):
-    vlans = ovs_vsctl("--if-exists get Open_vSwitch . external_ids:vlans")
+    vlans = ovs_vsctl("--if-exists get Open_vSwitch . "
+                      "external_ids:vlans").strip('"')
     if not vlans:
         return
 
@@ -272,7 +276,10 @@ def unreserve_vlan(reserved_vlan):
 
     vlan_set.remove(reserved_vlan)
     vlans = re.sub(r'[ \[\]\']', '', str(vlan_set))
-    ovs_vsctl("set Open_vSwitch . external_ids:vlans %s" % vlans)
+    if vlans:
+        ovs_vsctl("set Open_vSwitch . external_ids:vlans=%s" % vlans)
+    else:
+        ovs_vsctl("remove Open_vSwitch . external_ids vlans")
 
 
 def create_port_underlay(neutron, network, eid):
@@ -280,7 +287,7 @@ def create_port_underlay(neutron, network, eid):
     body = {'port': {'network_id': network,
                      'binding:profile': {'parent_name': VIF_ID,
                                          'tag': int(reserved_vlan)},
-                     'name': args.port_name,
+                     'name': eid,
                      'admin_state_up': True}}
 
     try:
@@ -289,10 +296,10 @@ def create_port_underlay(neutron, network, eid):
         ip = "%s" % ret['port']['fixed_ips'][0]['ip_address']
     except Exception as e:
         unreserve_vlan(reserved_vlan)
-        raise RuntimeError("Failed in creation of neutron port.")
+        raise RuntimeError("Failed in creation of neutron port (%s)." % str(e))
 
-    ovs_vsctl("set bridge %s external_ids:%s_vlan=%s"
-              % (OVN_BRIDGE, eid, reserved_vlan))
+    ovs_vsctl("set Open_vSwitch . external_ids:%s_vlan=%s"
+              % (eid, reserved_vlan))
 
     return (mac_address, ip)
 
@@ -480,6 +487,8 @@ def delete_endpoint():
                                   "external_ids:%s_vlan" % eid).strip('"')
         if reserved_vlan:
             unreserve_vlan(reserved_vlan)
+            ovs_vsctl("remove Open_vSwitch . external_ids %s_vlan"
+                      % eid)
 
     return jsonify({})
 
