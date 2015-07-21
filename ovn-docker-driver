@@ -476,12 +476,6 @@ def delete_endpoint():
     if not endpoint:
         return jsonify({})
 
-    try:
-        neutron.delete_port(endpoint)
-    except Exception as e:
-        error = "Failed to delete endpoint. (%s)" % (str(e))
-        return jsonify({'Err': error})
-
     if MODE == "underlay":
         reserved_vlan = ovs_vsctl("--if-exists get Open_vSwitch . "
                                   "external_ids:%s_vlan" % eid).strip('"')
@@ -489,6 +483,15 @@ def delete_endpoint():
             unreserve_vlan(reserved_vlan)
             ovs_vsctl("remove Open_vSwitch . external_ids %s_vlan"
                       % eid)
+        else:
+            # This endpoint was not created on this host
+            return jsonify({})
+
+    try:
+        neutron.delete_port(endpoint)
+    except Exception as e:
+        error = "Failed to delete endpoint. (%s)" % (str(e))
+        return jsonify({'Err': error})
 
     return jsonify({})
 
