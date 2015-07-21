@@ -257,7 +257,7 @@ source openrc.sh
 Start the network driver.
 
 ```
-ovn-docker-driver --underlay-mode --bridge breth1 --detach
+ovn-docker-driver --underlay-mode --bridge breth0 --detach
 ```
 
 From here-on you can use the same Docker commands as described in the

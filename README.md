@@ -17,8 +17,7 @@ solution. In this mode, you do not need a pre-created OpenStack setup.
 For both the modes to work, a user has to install Open vSwitch in each VM/host
 that he plans to run his containers.
 
-For integration of OVN in the "overlay" mode with Docker's libnetwork, read
-[INSTALL.Docker.md]
+For integration of OVN with Docker's libnetwork, read [INSTALL.Docker.md]
 
 For backend tools that works independently of Docker's libnetwork, read
 [backend.md]
