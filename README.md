@@ -18,7 +18,7 @@ For both the modes to work, a user has to install Open vSwitch in each VM/host
 that he plans to run his containers.
 
 For integration of OVN in the "overlay" mode with Docker's libnetwork, read
-[overlay.md]
+[INSTALL.Docker.md]
 
 For backend tools that works independently of Docker's libnetwork, read
 [backend.md]
@@ -31,6 +31,6 @@ the necessary changes to the ovn driver and get the code reviewed and added to
 the official Open vSwitch repo. Till then, any questions or discussions can
 be had at: discuss@openvswitch.org
 
-[overlay.md]: docs/overlay.md
+[INSTALL.Docker.md]: docs/INSTALL.Docker.md
 [backend.md]: docs/backend.md
 

@@ -22,10 +22,27 @@ as your distributed key-value store, start your Docker daemon with:
 docker --kv-store="consul:localhost:8500" -d
 ```
 
-OVN provides network virtualization to containers.  OVN can create
-logical networks amongst containers running on multiple hosts.  To better
-explain OVN's integration with Docker, this document explains the
-end to end workflow with an example.
+OVN provides network virtualization to containers.  OVN's integration with
+Docker currently works in two modes - the "underlay" mode or the "overlay"
+mode.
+
+In the "underlay" mode, OVN requires a OpenStack setup to provide container
+networking.  In this mode, one can create logical networks and can have
+containers running inside VMs, standalone VMs (without having any containers
+running inside them) and physical machines connected to the same logical
+network.  This is a multi-tenant, multi-host solution.
+
+In the "overlay" mode, OVN can create a logical network amongst containers
+running on multiple hosts.  This is a single-tenant (extendable to
+multi-tenants depending on the security characteristics of the workloads),
+multi-host solution.  In this mode, you do not need a pre-created OpenStack
+setup.
+
+For both the modes to work, a user has to install Open vSwitch in each
+VM/host that he plans to run his containers.
+
+The "overlay" mode
+==================
 
 * Start a IPAM server.
 
@@ -36,9 +53,9 @@ OpenStack Neutron already has an integration with OVN's Northbound database
 via a OVN plugin and this document uses it as an example.
 
 Installing OpenStack Neutron with OVN plugin from scratch on a server is out
-of scope of this documentation.  Instead this documentation uses a
-Docker image that comes pre-packaged with OpenStack Neutron and OVN's daemons
-as an example.
+of scope of this documentation (though highly recommended).  Instead this
+documentation uses a Docker image that comes pre-packaged with OpenStack
+Neutron and OVN's daemons as an example.
 
 Start your IPAM server on any host.
 
@@ -73,16 +90,6 @@ can reach this host. This IP address is referred as the local tunnel endpoint.
 
 ```
 ovn-integrate set-tep $LOCAL_IP
-```
-
-By default, OVN uses Geneve tunnels for overlay networks.  If you prefer to use
-STT tunnels (which are known for high throughput capabilities when TSO is
-turned on in your NICs), you can run the following command. (For STT
-tunnels to work, you will need a STT kernel module loaded.  STT kernel
-module does not come as part of the upstream Linux kernel.)
-
-```
-ovn-integrate set-encap-type stt
 ```
 
 And finally, start the OVN controller.
@@ -187,4 +194,74 @@ export OS_AUTH_STRATEGY="noauth"
 neutron net-list
 ```
 
-[INSTALL.md]:INSTALL.md
+The "underlay" mode
+===================
+
+This mode requires that you have a OpenStack setup pre-installed with OVN
+providing the underlay networking.
+
+* One time setup.
+
+A OpenStack tenant creates a VM with a single network interface that belongs
+to a management logical network.  The tenant needs to fetch the port-id
+associated with the spawned VM.  This can be obtained by running a
+'nova list' to fetch the 'id' associated with the VM and then by running
+the command 'neutron port-list --device_id=$id'.
+
+Inside the VM, download the OpenStack RC file that contains the tenant
+information (henceforth referred to as 'openrc.sh').  Edit the file and add the
+previously obtained port-id information to the file by appending the following
+line: export OS_VIF_ID=$id.  After this edit, the file will look something
+like:
+
+```
+#!/bin/bash
+export OS_AUTH_URL=http://10.33.75.122:5000/v2.0
+export OS_TENANT_ID=fab106b215d943c3bad519492278443d
+export OS_TENANT_NAME="demo"
+export OS_USERNAME="demo"
+export OS_VIF_ID=e798c371-85f4-4f2d-ad65-d09dd1d3c1c9
+```
+
+* Create the Open vSwitch bridge.
+
+Your VM will have one ethernet interface (e.g.: 'eth0').  You will need to add
+that device as a port to an Open vSwitch bridge and move its IP address and
+route related information to that bridge.  For example, assuming that your
+device is 'eth0', you could run:
+
+```
+ovn-integrate nics-to-bridge eth0
+```
+
+The above command will move the IP address and route information of 'eth0'
+to 'breth0'.
+
+If you use DHCP to obtain an IP address, then you should kill the DHCP client
+that was listening on the physical Ethernet interface (e.g. eth0) and start
+one listening on the Open vSwitch bridge (e.g. breth0).
+
+Depending on your VM, you can make the above step persistent across reboots.
+For e.g.:, if your VM is Debian/Ubuntu, you can read
+[openvswitch-switch.README.Debian]
+
+
+* Start the Open vSwitch network driver.
+
+Source the openrc file. e.g.:
+
+````
+source openrc.sh
+```
+
+Start the network driver.
+
+```
+ovn-docker-driver --underlay-mode --bridge breth1 --detach
+```
+
+From here-on you can use the same Docker commands as described in the
+section 'The "overlay" mode'.
+
+[INSTALL.md]: INSTALL.md
+[openvswitch-switch.README.Debian]: debian/openvswitch-switch.README.Debian
