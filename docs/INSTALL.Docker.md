@@ -19,7 +19,7 @@ with a destributed key-value store.  For e.g., if you decide to use consul
 as your distributed key-value store, start your Docker daemon with:
 
 ```
-docker --kv-store="consul:localhost:8500" -d
+docker --kv-store="consul:127.0.0.1:8500" -d
 ```
 
 OVN provides network virtualization to containers.  OVN's integration with
