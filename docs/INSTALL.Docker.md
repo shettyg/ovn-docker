@@ -119,7 +119,7 @@ Start the Open vSwitch driver on every host where you plan to create your
 containers.
 
 ```
-mkdir -p /usr/share/docker/plugins
+mkdir -p /etc/docker/plugins
 ovn-docker-driver --overlay-mode --detach
 ```
 
