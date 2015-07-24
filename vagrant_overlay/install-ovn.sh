@@ -25,7 +25,7 @@ cp -rf ./python/ovs /usr/local/lib/python2.7/dist-packages/.
 git clone https://github.com/shettyg/ovn-docker.git
 cd ovn-docker
 cp * /usr/local/bin/
-mkdir -p /usr/share/docker/plugins
+mkdir -p /etc/docker/plugins
 
 # Pulling in the world to make it run...
 apt-get install -y python-dev python-setuptools
