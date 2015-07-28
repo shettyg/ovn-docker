@@ -140,7 +140,6 @@ subnet information for your networks, you will need to associate
 that information manually, via:
 
 ```
-neutron net-create $NID --tenant-id admin --os-url http://$IPAM_IP:9696/ --os-auth-strategy="noauth"
 neutron subnet-create $NID 192.168.1.0/24 --tenant-id admin --os-url http://$IPAM_IP:9696/ --os-auth-strategy="noauth"
 ```
 

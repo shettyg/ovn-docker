@@ -203,8 +203,43 @@ def get_networkuuid_by_name(neutron, name):
 # http://localhost:5000/NetworkDriver.CreateNetwork
 @app.route('/NetworkDriver.CreateNetwork', methods=['POST'])
 def create_network():
-    # When IPAM is Neutron, then network would already be created because
-    # Docker does not currently allow passing subnet information.
+    # When IPAM is Neutron, we will have to create subnet separately
+    # because Docker currently does not allow passing subnet information.
+
+    if not request.data:
+        abort(400)
+
+    data = json.loads(request.data)
+
+    # NetworkID will have docker generated network uuid and it
+    # becomes 'name' in a neutron network record.
+    network = data.get("NetworkID", "")
+    if not network:
+        abort(400)
+
+    try:
+        neutron = neutron_login()
+    except Exception as e:
+        error = "%s" % (str(e))
+        return jsonify({'Err': error})
+
+    try:
+        if get_networkuuid_by_name(neutron, network):
+            return jsonify({})
+    except Exception as e:
+        error = "%s" % (str(e))
+        return jsonify({'Err': error})
+
+    try:
+        body = {'network': {'name': network,
+                            'tenant_id': "admin",
+                            'admin_state_up': True}}
+        ret = neutron.create_network(body)
+        network_id = ret['network']['id']
+    except Exception as e:
+        error = "Failed in neutron api call (%s)" % str(e)
+        return jsonify({'Err': error})
+
     return jsonify({})
 
 
