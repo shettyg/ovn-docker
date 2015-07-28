@@ -231,9 +231,12 @@ def create_network():
         return jsonify({'Err': error})
 
     try:
-        body = {'network': {'name': network,
-                            'tenant_id': "admin",
-                            'admin_state_up': True}}
+        if MODE == "underlay":
+            body = {'network': {'name': network, 'admin_state_up': True}}
+        else:
+            body = {'network': {'name': network,
+                                'tenant_id': "admin",
+                                'admin_state_up': True}}
         ret = neutron.create_network(body)
         network_id = ret['network']['id']
     except Exception as e:
