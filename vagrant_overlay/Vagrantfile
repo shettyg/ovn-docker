@@ -1,27 +1,90 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-Vagrant.configure(2) do |config|
+VAGRANTFILE_API_VERSION = "2"
+
+module OS
+    def OS.windows?
+        (/cygwin|mswin|mingw|bccwin|wince|emx/ =~ RUBY_PLATFORM) != nil
+    end
+
+    def OS.mac?
+        (/darwin/ =~ RUBY_PLATFORM) != nil
+    end
+
+    def OS.unix?
+        !OS.windows?
+    end
+
+    def OS.linux?
+        OS.unix? and not OS.mac?
+    end
+end
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
     config.vm.define "node1" do |node|
-      node.vm.box = "williamyeh/ubuntu-trusty64-docker"
-      node.vm.network "private_network", ip: "192.168.50.101"
-      node.vm.host_name = "node1"
-      node.vm.provision "shell", path: "consul-server.sh", :args => "192.168.50.101"
-      node.vm.provision "shell", path: "install-docker.sh"
-      node.vm.provision "shell", path: "install-ovn.sh"
-      node.vm.provision "shell", path: "run-ipam.sh"
-      node.vm.provision "shell", path: "run-ovn.sh", :args => "192.168.50.101 192.168.50.101"
+        node.vm.box = "williamyeh/ubuntu-trusty64-docker"
+        node.vm.network "private_network", ip: "192.168.50.101"
+        node.vm.host_name = "node1"
+        if OS.windows?
+            puts "Vagrant launched from windows."
+            p = File.expand_path("../", __FILE__)
+            node.vm.provision "shell" do |s|
+                s.path = p + "\\consul-server.sh"
+                s.args = "192.168.50.101"
+            end
+            node.vm.provision "shell" do |s|
+                s.path = p + "\\install-docker.sh"
+            end
+            node.vm.provision "shell" do |s|
+                s.path = p + "\\install-ovn.sh"
+            end
+            node.vm.provision "shell" do |s|
+                s.path = p + "\\run-ipam.sh"
+            end
+            node.vm.provision "shell" do |s|
+                s.path = p + "\\run-ovn.sh"
+                s.args = "192.168.50.101 192.168.50.101"
+            end
+        elsif OS.mac?
+            puts "Vagrant launched from mac."
+            node.vm.provision "shell", path: "consul-server.sh", :args => "192.168.50.101"
+            node.vm.provision "shell", path: "install-docker.sh"
+            node.vm.provision "shell", path: "install-ovn.sh"
+            node.vm.provision "shell", path: "run-ipam.sh"
+            node.vm.provision "shell", path: "run-ovn.sh", :args => "192.168.50.101 192.168.50.101"
+        end
     end
 
     config.vm.define "node2" do |node|
-      node.vm.box = "williamyeh/ubuntu-trusty64-docker"
-      node.vm.network "private_network", ip: "192.168.50.102"
-      node.vm.host_name = "node2"
-      node.vm.provision "shell", path: "consul-client.sh", :args => "192.168.50.102 192.168.50.101"
-      node.vm.provision "shell", path: "install-docker.sh"
-      node.vm.provision "shell", path: "install-ovn.sh"
-      node.vm.provision "shell", path: "run-ovn.sh", :args => "192.168.50.101 192.168.50.102"
+        node.vm.box = "williamyeh/ubuntu-trusty64-docker"
+        node.vm.network "private_network", ip: "192.168.50.102"
+        node.vm.host_name = "node2"
+        if OS.windows?
+            puts "Vagrant launched from windows."
+            p = File.expand_path("../", __FILE__)
+            node.vm.provision "shell" do |s|
+                s.path = p + "\\consul-client.sh"
+                s.args = "192.168.50.102 192.168.50.101"
+            end
+            node.vm.provision "shell" do |s|
+                s.path = p + "\\install-docker.sh"
+            end
+            node.vm.provision "shell" do |s|
+                s.path = p + "\\install-ovn.sh"
+            end
+            node.vm.provision "shell" do |s|
+                s.path = p + "\\run-ovn.sh"
+                s.args = "192.168.50.101 192.168.50.102"
+            end
+        elsif OS.mac?
+            puts "Vagrant launched from mac."
+            node.vm.provision "shell", path: "consul-client.sh", :args => "192.168.50.102 192.168.50.101"
+            node.vm.provision "shell", path: "install-docker.sh"
+            node.vm.provision "shell", path: "install-ovn.sh"
+            node.vm.provision "shell", path: "run-ovn.sh", :args => "192.168.50.101 192.168.50.102"
+        end
     end
 
 end
