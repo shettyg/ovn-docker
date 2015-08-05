@@ -7,6 +7,7 @@ apt-get install -y build-essential fakeroot debhelper \
 
 
 
+
 git clone https://github.com/openvswitch/ovs.git
 cd ovs
 ./boot.sh
@@ -25,6 +26,11 @@ cp -rf ./python/ovs /usr/local/lib/python2.7/dist-packages/.
 git clone https://github.com/shettyg/ovn-docker.git
 cd ovn-docker
 cp * /usr/local/bin/
+cd vagrant_overlay
+chmod 755 test1.sh test2.sh test3_node1.sh test3_node2.sh test3_cleanup_node1.sh test3_cleanup_node2.sh clean_all.sh
+cp *.sh /usr/local/bin
+sh /usr/local/bin/clean_all.sh
+
 mkdir -p /etc/docker/plugins
 
 # Pulling in the world to make it run...
