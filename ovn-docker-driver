@@ -312,7 +312,7 @@ def unreserve_vlan(reserved_vlan):
     if str(reserved_vlan) not in vlan_set:
         return
 
-    vlan_set.remove(reserved_vlan)
+    vlan_set.remove(str(reserved_vlan))
     vlans = re.sub(r'[ \[\]\']', '', str(vlan_set))
     if vlans:
         ovs_vsctl("set Open_vSwitch . external_ids:vlans=%s" % vlans)
