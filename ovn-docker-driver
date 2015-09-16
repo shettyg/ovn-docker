@@ -384,7 +384,7 @@ def create_endpoint():
     if not eid:
         abort(400)
 
-    interfaces = data.get("Interfaces", "")
+    interfaces = data.get("Interface", "")
     if interfaces:
         # If interfaces has record, the endpoint has already
         # been created.
@@ -395,6 +395,11 @@ def create_endpoint():
     except Exception as e:
         error = "%s" % (str(e))
         return jsonify({'Err': error})
+
+    endpoint = get_endpointuuid_by_name(neutron, eid)
+    if endpoint:
+        # endpoint has already been created.
+        return jsonify({})
 
     network = get_networkuuid_by_name(neutron, nid)
     if not network:
@@ -434,12 +439,11 @@ def create_endpoint():
         return jsonify({'Err': error})
 
     ip_address_and_mask = "%s/%s" % (ip_address, netmask)
-    return jsonify({"Interfaces": [{
-                                    "ID": 0,
+    return jsonify({"Interface": {
                                     "Address": ip_address_and_mask,
                                     "AddressIPv6": None,
                                     "MacAddress": mac_address
-                                    }]})
+                                    }})
 
 
 # curl -i -H 'Content-Type: application/json' -X POST -d
@@ -625,10 +629,10 @@ def network_join():
         error = "Failed to create a port (%s)" % (str(e))
         return jsonify({'Err': error})
 
-    return jsonify({"InterfaceNames": [{
+    return jsonify({"InterfaceName": {
                                         "SrcName": veth_inside,
                                         "DstPrefix": "eth"
-                                       }],
+                                     },
                     "Gateway": "",
                     "GatewayIPv6": "",
                     "HostsPath": "",
