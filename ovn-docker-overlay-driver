@@ -447,4 +447,4 @@ def network_leave():
 
 if __name__ == '__main__':
     prepare()
-    app.run(debug=True)
+    app.run(host='0.0.0.0')

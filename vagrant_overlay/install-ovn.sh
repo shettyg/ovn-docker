@@ -26,7 +26,7 @@ ovs-appctl -t ovsdb-server ovsdb-server/add-remote ptcp:6640
 
 ovs-vsctl set Open_vSwitch . external_ids:ovn-remote="tcp:$1:6640"
 ovs-vsctl set Open_vSwitch . external_ids:ovn-encap-ip="$2"
-#ovs-vsctl set Open_vSwitch . external_ids:ovn-encap-type="geneve"
+ovs-vsctl set Open_vSwitch . external_ids:ovn-encap-type="geneve"
 
 /usr/share/openvswitch/scripts/ovn-ctl start_controller
 
