@@ -36,24 +36,17 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             end
             node.vm.provision "shell" do |s|
                 s.path = p + "\\install-docker.sh"
+                s.args = "192.168.50.101"
             end
             node.vm.provision "shell" do |s|
                 s.path = p + "\\install-ovn.sh"
-            end
-            node.vm.provision "shell" do |s|
-                s.path = p + "\\run-ipam.sh"
-            end
-            node.vm.provision "shell" do |s|
-                s.path = p + "\\run-ovn.sh"
                 s.args = "192.168.50.101 192.168.50.101"
             end
         elsif OS.mac?
             puts "Vagrant launched from mac."
             node.vm.provision "shell", path: "consul-server.sh", :args => "192.168.50.101"
-            node.vm.provision "shell", path: "install-docker.sh"
-            node.vm.provision "shell", path: "install-ovn.sh"
-            node.vm.provision "shell", path: "run-ipam.sh"
-            node.vm.provision "shell", path: "run-ovn.sh", :args => "192.168.50.101 192.168.50.101"
+            node.vm.provision "shell", path: "install-docker.sh", :args => "192.168.50.101"
+            node.vm.provision "shell", path: "install-ovn.sh", :args => "192.168.50.101 192.168.50.101"
         end
     end
 
@@ -70,20 +63,17 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
             end
             node.vm.provision "shell" do |s|
                 s.path = p + "\\install-docker.sh"
+                s.args = "192.168.50.101"
             end
             node.vm.provision "shell" do |s|
                 s.path = p + "\\install-ovn.sh"
-            end
-            node.vm.provision "shell" do |s|
-                s.path = p + "\\run-ovn.sh"
                 s.args = "192.168.50.101 192.168.50.102"
             end
         elsif OS.mac?
             puts "Vagrant launched from mac."
             node.vm.provision "shell", path: "consul-client.sh", :args => "192.168.50.102 192.168.50.101"
-            node.vm.provision "shell", path: "install-docker.sh"
-            node.vm.provision "shell", path: "install-ovn.sh"
-            node.vm.provision "shell", path: "run-ovn.sh", :args => "192.168.50.101 192.168.50.102"
+            node.vm.provision "shell", path: "install-docker.sh", :args => "192.168.50.102"
+            node.vm.provision "shell", path: "install-ovn.sh", :args => "192.168.50.101 192.168.50.102"
         end
     end
 

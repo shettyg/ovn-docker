@@ -21,7 +21,14 @@ insmod ./datapath/linux/openvswitch.ko
 insmod ./datapath/linux/vport-geneve.ko
 cp -rf ./python/ovs /usr/local/lib/python2.7/dist-packages/.
 /etc/init.d/openvswitch-switch start
+ovs-appctl -t ovsdb-server ovsdb-server/add-remote ptcp:6640
+/usr/share/openvswitch/scripts/ovn-ctl start_northd
 
+ovs-vsctl set Open_vSwitch . external_ids:ovn-remote="tcp:$1:6640"
+ovs-vsctl set Open_vSwitch . external_ids:ovn-encap-ip="$2"
+#ovs-vsctl set Open_vSwitch . external_ids:ovn-encap-type="geneve"
+
+/usr/share/openvswitch/scripts/ovn-ctl start_controller
 
 git clone https://github.com/shettyg/ovn-docker.git
 cd ovn-docker
@@ -36,8 +43,6 @@ mkdir -p /etc/docker/plugins
 # Pulling in the world to make it run...
 apt-get install -y python-dev python-setuptools
 easy_install -U pip
-pip install oslo.utils
-# Install via PIP to get the latest version (Ubunutu is way too old)
-pip install python-neutronclient
 pip install flask
 
+ovn-docker-overlay-driver  --detach

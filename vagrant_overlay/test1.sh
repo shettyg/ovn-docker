@@ -1,11 +1,20 @@
 # Create a network, list it, delete it, list it.
 
-IPAM_IP=`sudo ovs-vsctl get Open-vSwitch . external_ids:ipam | sed 's/"//g'`
-NID=`docker network create -d openvswitch foo`
-neutron subnet-create $NID 192.168.1.0/24 --tenant-id admin --os-url http://$IPAM_IP:9696/ --os-auth-strategy="noauth"
+NID=`docker network create -d openvswitch --subnet=192.168.1.0/24 foo`
 
+OVN_REMOTE=`ovs-vsctl get o . external_ids:ovn-remote | sed 's/"//g'`
 if docker network ls | grep foo 2>&1 >/dev/null; then :; else
   echo "test failed while creating network"
+fi
+
+logical_switch=`ovn-nbctl --db=$OVN_REMOTE --if-exists get logical_switch $NID name | sed 's/"//g'`
+
+
+
+if [ "$NID" != "$logical_switch" ]; then
+    echo "Logical switch in OVN does not match Docker network uuid"
+    docker network rm foo
+    exit 1
 fi
 
 docker network rm foo
@@ -14,6 +23,9 @@ if docker network ls | grep foo 2>&1 >/dev/null; then
   echo "test failed while deleting network"
 fi
 
-if neutron net-show $NID --tenant-id admin --os-url http://$IPAM_IP:9696/ --os-auth-strategy="noauth" 2>/dev/null; then
-  echo "test failed with neutron networt not deleted"
+logical_switch=`ovn-nbctl --db=$OVN_REMOTE --if-exists get logical_switch $NID name`
+
+if [ -n "$logical_switch" ]; then
+   echo "Logical switch in OVN still exists after deleting docker network"
+   exit 1
 fi

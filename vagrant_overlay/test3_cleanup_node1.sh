@@ -1,7 +1,4 @@
-# clean up test3
 # Stop and delete container
-docker stop postgres
-docker rm postgres
+docker stop -t 1 busybox
+docker rm busybox
 
-# Delete service
-docker service unpublish app.foo
