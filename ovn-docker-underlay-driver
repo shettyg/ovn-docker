@@ -242,10 +242,10 @@ def create_network():
 
     try:
         body = {'subnet': {'network_id': network_id,
-                'ip_version': 4,
-                'cidr': subnet,
-                'gateway_ip': gateway_ip,
-                'name': subnet_name}}
+                           'ip_version': 4,
+                           'cidr': subnet,
+                           'gateway_ip': gateway_ip,
+                           'name': subnet_name}}
         created_subnet = neutron.create_subnet(body)
     except Exception as e:
         error = "create_network: neutron subnet-create call. (%s)" % str(e)
@@ -334,19 +334,19 @@ def create_port_underlay(neutron, network, eid, ip_address, mac_address):
     reserved_vlan = reserve_vlan()
     if mac_address:
         body = {'port': {'network_id': network,
-                     'binding:profile': {'parent_name': VIF_ID,
-                                         'tag': int(reserved_vlan)},
-                     'mac_address': mac_address,
-                     'fixed_ips': [{'ip_address': ip_address}],
-                     'name': eid,
-                     'admin_state_up': True}}
+                         'binding:profile': {'parent_name': VIF_ID,
+                                             'tag': int(reserved_vlan)},
+                         'mac_address': mac_address,
+                         'fixed_ips': [{'ip_address': ip_address}],
+                         'name': eid,
+                         'admin_state_up': True}}
     else:
         body = {'port': {'network_id': network,
-                     'binding:profile': {'parent_name': VIF_ID,
-                                         'tag': int(reserved_vlan)},
-                     'fixed_ips': [{'ip_address': ip_address}],
-                     'name': eid,
-                     'admin_state_up': True}}
+                         'binding:profile': {'parent_name': VIF_ID,
+                                             'tag': int(reserved_vlan)},
+                         'fixed_ips': [{'ip_address': ip_address}],
+                         'name': eid,
+                         'admin_state_up': True}}
 
     try:
         ret = neutron.create_port(body)
@@ -397,7 +397,7 @@ def create_endpoint():
     if not ip_address_and_mask:
         error = "create_endpoint: ip address not provided by libnetwork"
         return jsonify({'Err': error})
-        
+
     ip_address = ip_address_and_mask.rsplit('/', 1)[0]
     mac_address_input = interface.get("MacAddress", "")
     mac_address_output = ""
@@ -583,7 +583,7 @@ def network_join():
             return jsonify({'Err': error})
     except Exception as e:
         error = "network_join: neutron endpoint by name. (%s)" % (str(e))
-        return jsonify({'Err': error}) 
+        return jsonify({'Err': error})
 
     try:
         ret = neutron.show_port(endpoint)

@@ -40,6 +40,7 @@ OVN_REMOTE = ""
 PLUGIN_DIR = "/etc/docker/plugins"
 PLUGIN_FILE = "/etc/docker/plugins/openvswitch.spec"
 
+
 def call_popen(cmd):
     child = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     output = child.communicate()
@@ -85,7 +86,7 @@ def ovn_init_overlay():
 
     global OVN_REMOTE
     OVN_REMOTE = ovs_vsctl("get Open_vSwitch . "
-                            "external_ids:ovn-remote").strip('"')
+                           "external_ids:ovn-remote").strip('"')
     if not OVN_REMOTE:
         sys.exit("OVN central database's ip address not set")
 
@@ -170,7 +171,7 @@ def create_network():
     try:
         ovn_nbctl("lswitch-add %s -- set Logical_Switch %s "
                   "external_ids:subnet=%s external_ids:gateway_ip=%s"
-                   % (network, network, subnet, gateway_ip))
+                  % (network, network, subnet, gateway_ip))
     except Exception as e:
         error = "create_network: lswitch-add %s" % (str(e))
         return jsonify({'Err': error})
