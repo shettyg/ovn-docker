@@ -80,7 +80,7 @@ $ENCAP_TYPE is the type of tunnel that you would like to use for overlay
 networking.  The options are "geneve" or "stt".
 
 ```
-ovs-vsctl set Open_vSwitch . external_ids:ovn-remote="tcp:$CENTRAL_IP:6640 \
+ovs-vsctl set Open_vSwitch . external_ids:ovn-remote="tcp:$CENTRAL_IP:6640" \
     external_ids:ovn-encap-ip=$LOCAL_IP external_ids:ovn-encap-type="geneve"
 ```
 
@@ -109,7 +109,7 @@ Start the Open vSwitch driver on every host where you plan to create your
 containers.
 
 ```
-ovn-docker-overlay-driver --overlay-mode --detach
+ovn-docker-overlay-driver --detach
 ```
 
 Docker has inbuilt primitives that closely match OVN's logical switches
