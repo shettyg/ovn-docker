@@ -91,7 +91,7 @@ def ovn_init_overlay():
         sys.exit("OVN central database's ip address not set")
 
     ovs_vsctl("set open_vswitch . external_ids:ovn-bridge=%s "
-              "external_ids:ovn-encap-type=geneve" % OVN_BRIDGE)
+              % OVN_BRIDGE)
 
 
 def prepare():
@@ -230,10 +230,9 @@ def create_endpoint():
     mac_address_output = ""
 
     try:
-        ovn_nbctl("lport-add %s %s"
-                  % (nid, eid))
+        ovn_nbctl("lport-add %s %s" % (nid, eid))
     except Exception as e:
-        error = "create_endpoint: lport-add %s" % (str(e))
+        error = "create_endpoint: lport-add (%s)" % (str(e))
         return jsonify({'Err': error})
 
     if not mac_address_input:
@@ -249,7 +248,7 @@ def create_endpoint():
         ovn_nbctl("lport-set-addresses %s \"%s %s\""
                   % (eid, mac_address, ip_address))
     except Exception as e:
-        error = "create_endpoint: lport-set-addresses %s" % (str(e))
+        error = "create_endpoint: lport-set-addresses (%s)" % (str(e))
         return jsonify({'Err': error})
 
     # Only return a mac address if one did not come as request.
@@ -264,9 +263,19 @@ def create_endpoint():
                                     }})
 
 
-# curl -i -H 'Content-Type: application/json' -X POST -d
-# '{"NetworkID":"dummy-network","EndpointID":"dummy-endpoint"}'
-# http://localhost:5000/NetworkDriver.EndpointOperInfo
+def get_logical_port_addresses(eid):
+    ret = ovn_nbctl("--if-exists get Logical_port %s addresses" % (eid))
+    if not ret:
+        error = "endpoint not found in OVN database"
+        return (None, None, error)
+    addresses = ast.literal_eval(ret)
+    if len(addresses) == 0:
+        error = "unexpected return while fetching addresses"
+        return (None, None, error)
+    (mac_address, ip_address) = addresses[0].split()
+    return (mac_address, ip_address, None)
+
+
 @app.route('/NetworkDriver.EndpointOperInfo', methods=['POST'])
 def show_endpoint():
     if not request.data:
@@ -283,18 +292,11 @@ def show_endpoint():
         abort(400)
 
     try:
-        ret = ovn_nbctl("--if-exists get Logical_port %s addresses" % (eid))
-        if not ret:
-            error = "show_endpoint: endpoint not found in OVN database"
-            return jsonify({'Err': error})
-        addresses = ast.literal_eval(ret)
-        if len(addresses) == 0:
-            error = "show_endpoint: Unexpected return while fetching addresses"
-            return jsonify({'Err': error})
-        (mac_address, ip_address) = addresses[0].split()
-
+        (mac_address, ip_address, error) = get_logical_port_addresses(eid)
+        if error:
+            jsonify({'Err': error})
     except Exception as e:
-        error = "show_endpoint: get Logical_port %s" % (str(e))
+        error = "show_endpoint: get Logical_port addresses. (%s)" % (str(e))
         return jsonify({'Err': error})
 
     veth_outside = eid[0:15]
@@ -351,20 +353,9 @@ def network_join():
     vm_id = sboxkey.rsplit('/')[-1]
 
     try:
-        endpoint = ovn_nbctl("--if-exists get Logical_port %s _uuid" % (eid))
-        if not endpoint:
-            error = "network_join: Failed to fetch endpoint"
-            return jsonify({'Err': error})
-
-        ret = ovn_nbctl("--if-exists get Logical_port %s addresses" % (eid))
-        if not ret:
-            error = "network_join: endpoint not found in OVN database"
-            return jsonify({'Err': error})
-        addresses = ast.literal_eval(ret)
-        if len(addresses) == 0:
-            error = "network_join: Unexpected return while fetching addresses"
-            return jsonify({'Err': error})
-        (mac_address, ip_address) = addresses[0].split()
+        (mac_address, ip_address, error) = get_logical_port_addresses(eid)
+        if error:
+            jsonify({'Err': error})
     except Exception as e:
         error = "network_join: %s" % (str(e))
         return jsonify({'Err': error})
@@ -376,7 +367,7 @@ def network_join():
     try:
         call_popen(shlex.split(command))
     except Exception as e:
-        error = "Failed to create veth pair (%s)" % (str(e))
+        error = "network_join: failed to create veth pair (%s)" % (str(e))
         return jsonify({'Err': error})
 
     command = "ip link set dev %s address %s" \
@@ -385,7 +376,7 @@ def network_join():
     try:
         call_popen(shlex.split(command))
     except Exception as e:
-        error = "Failed to set veth mac address (%s)" % (str(e))
+        error = "network_join: failed to set veth mac address (%s)" % (str(e))
         return jsonify({'Err': error})
 
     command = "ip link set %s up" % (veth_outside)
@@ -393,7 +384,7 @@ def network_join():
     try:
         call_popen(shlex.split(command))
     except Exception as e:
-        error = "Failed to up the veth interface (%s)" % (str(e))
+        error = "network_join: failed to up the veth interface (%s)" % (str(e))
         return jsonify({'Err': error})
 
     try:
@@ -404,7 +395,7 @@ def network_join():
                   "external_ids:iface-status=%s "
                   % (veth_outside, mac_address, eid, vm_id, "active"))
     except Exception as e:
-        error = "Failed to create a port (%s)" % (str(e))
+        error = "network_join: failed to create a port (%s)" % (str(e))
         return jsonify({'Err': error})
 
     return jsonify({"InterfaceName": {
@@ -435,13 +426,13 @@ def network_leave():
     try:
         call_popen(shlex.split(command))
     except Exception as e:
-        error = "Failed to delete veth pair (%s)" % (str(e))
+        error = "network_leave: failed to delete veth pair (%s)" % (str(e))
         return jsonify({'Err': error})
 
     try:
         ovs_vsctl("--if-exists del-port %s" % (veth_outside))
     except Exception as e:
-        error = "Failed to delete port (%s)" % (str(e))
+        error = "network_leave: failed to delete port (%s)" % (str(e))
         return jsonify({'Err': error})
 
     return jsonify({})

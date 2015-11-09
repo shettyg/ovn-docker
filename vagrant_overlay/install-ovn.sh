@@ -1,4 +1,3 @@
-apt-get update
 apt-get install -y build-essential fakeroot debhelper \
                     autoconf automake bzip2 libssl-dev \
                     openssl graphviz python-all procps \
