@@ -58,12 +58,12 @@ def call_prog(prog, args_list):
     return call_popen(cmd)
 
 
-def ovs_vsctl(args):
-    return call_prog("ovs-vsctl", shlex.split(args))
+def ovs_vsctl(*args):
+    return call_prog("ovs-vsctl", list(args))
 
 
-def ovn_nbctl(args):
-    args_list = shlex.split(args)
+def ovn_nbctl(*args):
+    args_list = list(args)
     database_option = "%s=%s" % ("--db", OVN_REMOTE)
     args_list.insert(0, database_option)
     return call_prog("ovn-nbctl", args_list)
@@ -77,21 +77,19 @@ def cleanup():
 def ovn_init_overlay():
     br_list = ovs_vsctl("list-br").split()
     if OVN_BRIDGE not in br_list:
-        ovs_vsctl("-- --may-exist add-br %s "
-                  "-- br-set-external-id %s bridge-id %s "
-                  "-- set bridge %s other-config:disable-in-band=true "
-                  "-- set bridge %s fail-mode=secure"
-                  % (OVN_BRIDGE, OVN_BRIDGE, OVN_BRIDGE, OVN_BRIDGE,
-                     OVN_BRIDGE))
+        ovs_vsctl("--", "--may-exist", "add-br", OVN_BRIDGE,
+                  "--", "set", "bridge", OVN_BRIDGE,
+                  "external_ids:bridge-id=" + OVN_BRIDGE,
+                  "other-config:disable-in-band=true", "fail-mode=secure")
 
     global OVN_REMOTE
-    OVN_REMOTE = ovs_vsctl("get Open_vSwitch . "
+    OVN_REMOTE = ovs_vsctl("get", "Open_vSwitch", ".",
                            "external_ids:ovn-remote").strip('"')
     if not OVN_REMOTE:
         sys.exit("OVN central database's ip address not set")
 
-    ovs_vsctl("set open_vswitch . external_ids:ovn-bridge=%s "
-              % OVN_BRIDGE)
+    ovs_vsctl("set", "open_vswitch", ".",
+              "external_ids:ovn-bridge=" + OVN_BRIDGE)
 
 
 def prepare():
@@ -169,9 +167,9 @@ def create_network():
         return jsonify({'Err': error})
 
     try:
-        ovn_nbctl("lswitch-add %s -- set Logical_Switch %s "
-                  "external_ids:subnet=%s external_ids:gateway_ip=%s"
-                  % (network, network, subnet, gateway_ip))
+        ovn_nbctl("lswitch-add", network, "--", "set", "Logical_Switch",
+                  network, "external_ids:subnet=" + subnet,
+                  "external_ids:gateway_ip=" + gateway_ip)
     except Exception as e:
         error = "create_network: lswitch-add %s" % (str(e))
         return jsonify({'Err': error})
@@ -191,7 +189,7 @@ def delete_network():
         abort(400)
 
     try:
-        ovn_nbctl("lswitch-del %s" % (nid))
+        ovn_nbctl("lswitch-del", nid)
     except Exception as e:
         error = "delete_network: lswitch-del %s" % (str(e))
         return jsonify({'Err': error})
@@ -230,7 +228,7 @@ def create_endpoint():
     mac_address_output = ""
 
     try:
-        ovn_nbctl("lport-add %s %s" % (nid, eid))
+        ovn_nbctl("lport-add", nid, eid)
     except Exception as e:
         error = "create_endpoint: lport-add (%s)" % (str(e))
         return jsonify({'Err': error})
@@ -245,8 +243,8 @@ def create_endpoint():
         mac_address = mac_address_input
 
     try:
-        ovn_nbctl("lport-set-addresses %s \"%s %s\""
-                  % (eid, mac_address, ip_address))
+        ovn_nbctl("lport-set-addresses", eid,
+                  mac_address + " " + ip_address)
     except Exception as e:
         error = "create_endpoint: lport-set-addresses (%s)" % (str(e))
         return jsonify({'Err': error})
@@ -264,7 +262,7 @@ def create_endpoint():
 
 
 def get_logical_port_addresses(eid):
-    ret = ovn_nbctl("--if-exists get Logical_port %s addresses" % (eid))
+    ret = ovn_nbctl("--if-exists", "get", "Logical_port", eid, "addresses")
     if not ret:
         error = "endpoint not found in OVN database"
         return (None, None, error)
@@ -322,7 +320,7 @@ def delete_endpoint():
         abort(400)
 
     try:
-        ovn_nbctl("lport-del %s" % eid)
+        ovn_nbctl("lport-del", eid)
     except Exception as e:
         error = "delete_endpoint: lport-del %s" % (str(e))
         return jsonify({'Err': error})
@@ -388,12 +386,12 @@ def network_join():
         return jsonify({'Err': error})
 
     try:
-        ovs_vsctl("add-port %s %s" % (OVN_BRIDGE, veth_outside))
-        ovs_vsctl("set interface %s external_ids:attached-mac=%s "
-                  "external_ids:iface-id=%s "
-                  "external_ids:vm-id=%s "
-                  "external_ids:iface-status=%s "
-                  % (veth_outside, mac_address, eid, vm_id, "active"))
+        ovs_vsctl("add-port", OVN_BRIDGE, veth_outside)
+        ovs_vsctl("set", "interface", veth_outside,
+                  "external_ids:attached-mac=" + mac_address,
+                  "external_ids:iface-id=" + eid,
+                  "external_ids:vm-id=" + vm_id,
+                  "external_ids:iface-status=active")
     except Exception as e:
         error = "network_join: failed to create a port (%s)" % (str(e))
         return jsonify({'Err': error})
@@ -430,7 +428,7 @@ def network_leave():
         return jsonify({'Err': error})
 
     try:
-        ovs_vsctl("--if-exists del-port %s" % (veth_outside))
+        ovs_vsctl("--if-exists", "del-port", veth_outside)
     except Exception as e:
         error = "network_leave: failed to delete port (%s)" % (str(e))
         return jsonify({'Err': error})

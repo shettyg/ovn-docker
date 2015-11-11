@@ -67,8 +67,8 @@ def call_prog(prog, args_list):
     return call_popen(cmd)
 
 
-def ovs_vsctl(args):
-    return call_prog("ovs-vsctl", shlex.split(args))
+def ovs_vsctl(*args):
+    return call_prog("ovs-vsctl", list(args))
 
 
 def cleanup():
@@ -121,7 +121,7 @@ def prepare():
     ovs.daemon.daemonize()
     try:
         fo = open(PLUGIN_FILE, "w")
-        fo.write("tcp://0.0.0.0:5000")
+        fo.write("tcp://127.0.0.1:5000")
         fo.close()
     except Exception as e:
         ovs.util.ovs_fatal(0, "Failed to write to spec file (%s)" % str(e),
@@ -291,11 +291,12 @@ def delete_network():
 
 def reserve_vlan():
     reserved_vlan = 0
-    vlans = ovs_vsctl("--if-exists get Open_vSwitch . "
+    vlans = ovs_vsctl("--if-exists", "get", "Open_vSwitch", ".",
                       "external_ids:vlans").strip('"')
     if not vlans:
         reserved_vlan = 1
-        ovs_vsctl("set Open_vSwitch . external_ids:vlans=%s" % reserved_vlan)
+        ovs_vsctl("set", "Open_vSwitch", ".",
+                  "external_ids:vlans=" + str(reserved_vlan))
         return reserved_vlan
 
     vlan_set = str(vlans).split(',')
@@ -305,7 +306,8 @@ def reserve_vlan():
             vlan_set.append(str(vlan))
             reserved_vlan = vlan
             vlans = re.sub(r'[ \[\]\']', '', str(vlan_set))
-            ovs_vsctl("set Open_vSwitch . external_ids:vlans=%s" % vlans)
+            ovs_vsctl("set", "Open_vSwitch", ".",
+                      "external_ids:vlans=" + vlans)
             return reserved_vlan
 
     if not reserved_vlan:
@@ -313,7 +315,7 @@ def reserve_vlan():
 
 
 def unreserve_vlan(reserved_vlan):
-    vlans = ovs_vsctl("--if-exists get Open_vSwitch . "
+    vlans = ovs_vsctl("--if-exists", "get", "Open_vSwitch", ".",
                       "external_ids:vlans").strip('"')
     if not vlans:
         return
@@ -325,9 +327,9 @@ def unreserve_vlan(reserved_vlan):
     vlan_set.remove(str(reserved_vlan))
     vlans = re.sub(r'[ \[\]\']', '', str(vlan_set))
     if vlans:
-        ovs_vsctl("set Open_vSwitch . external_ids:vlans=%s" % vlans)
+        ovs_vsctl("set", "Open_vSwitch", ".", "external_ids:vlans=" + vlans)
     else:
-        ovs_vsctl("remove Open_vSwitch . external_ids vlans")
+        ovs_vsctl("remove", "Open_vSwitch", ".", "external_ids", "vlans")
 
 
 def create_port_underlay(neutron, network, eid, ip_address, mac_address):
@@ -355,8 +357,8 @@ def create_port_underlay(neutron, network, eid, ip_address, mac_address):
         unreserve_vlan(reserved_vlan)
         raise RuntimeError("Failed in creation of neutron port (%s)." % str(e))
 
-    ovs_vsctl("set Open_vSwitch . external_ids:%s_vlan=%s"
-              % (eid, reserved_vlan))
+    ovs_vsctl("set", "Open_vSwitch", ".",
+              "external_ids:" + eid + "_vlan=" + str(reserved_vlan))
 
     return mac_address
 
@@ -513,11 +515,12 @@ def delete_endpoint():
     if not endpoint:
         return jsonify({})
 
-    reserved_vlan = ovs_vsctl("--if-exists get Open_vSwitch . "
-                              "external_ids:%s_vlan" % eid).strip('"')
+    reserved_vlan = ovs_vsctl("--if-exists", "get", "Open_vSwitch", ".",
+                              "external_ids:" + eid + "_vlan").strip('"')
     if reserved_vlan:
         unreserve_vlan(reserved_vlan)
-        ovs_vsctl("remove Open_vSwitch . external_ids %s_vlan" % eid)
+        ovs_vsctl("remove", "Open_vSwitch", ".", "external_ids",
+                  eid + "_vlan")
 
     try:
         neutron.delete_port(endpoint)
@@ -620,13 +623,12 @@ def network_join():
         return jsonify({'Err': error})
 
     try:
-        reserved_vlan = ovs_vsctl("--if-exists get Open_vSwitch . "
-                                  "external_ids:%s_vlan" % eid).strip('"')
+        reserved_vlan = ovs_vsctl("--if-exists", "get", "Open_vSwitch", ".",
+                                  "external_ids:" + eid + "_vlan").strip('"')
         if not reserved_vlan:
             error = "network_join: no reserved vlan for this endpoint"
             return jsonify({'Err': error})
-        ovs_vsctl("add-port %s %s tag=%s"
-                  % (OVN_BRIDGE, veth_outside, reserved_vlan))
+        ovs_vsctl("add-port", OVN_BRIDGE, veth_outside, "tag=" + reserved_vlan)
     except Exception as e:
         error = "network_join: failed to create a OVS port. (%s)" % (str(e))
         return jsonify({'Err': error})
@@ -663,7 +665,7 @@ def network_leave():
         return jsonify({'Err': error})
 
     try:
-        ovs_vsctl("--if-exists del-port %s" % (veth_outside))
+        ovs_vsctl("--if-exists", "del-port", veth_outside)
     except Exception as e:
         error = "network_leave: Failed to delete port (%s)" % (str(e))
         return jsonify({'Err': error})
@@ -672,4 +674,4 @@ def network_leave():
 
 if __name__ == '__main__':
     prepare()
-    app.run(host='0.0.0.0')
+    app.run(host='127.0.0.1')
