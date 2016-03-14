@@ -1,7 +1,7 @@
 IP=$1
 apt-get update
 apt-get install unzip
-wget https://dl.bintray.com/mitchellh/consul/0.5.2_linux_amd64.zip
-unzip 0.5.2_linux_amd64.zip
+wget https://releases.hashicorp.com/consul/0.6.3/consul_0.6.3_linux_amd64.zip
+unzip consul_0.6.3_linux_amd64.zip
 cp consul /usr/sbin/.
 nohup consul agent -server -bootstrap -data-dir /tmp/consul -bind=$1 > /dev/null 2>&1 &

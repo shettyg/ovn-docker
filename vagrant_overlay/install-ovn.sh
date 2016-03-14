@@ -16,6 +16,7 @@ make install
 cp debian/openvswitch-switch.init /etc/init.d/openvswitch-switch
 rmmod openvswitch
 sudo modprobe libcrc32c
+sudo modprobe nf_conntrack_ipv6
 insmod ./datapath/linux/openvswitch.ko
 insmod ./datapath/linux/vport-geneve.ko
 cp -rf ./python/ovs /usr/local/lib/python2.7/dist-packages/.
