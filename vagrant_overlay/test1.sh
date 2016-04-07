@@ -2,7 +2,7 @@
 
 NID=`docker network create -d openvswitch --subnet=192.168.1.0/24 foo`
 
-OVN_REMOTE=`ovs-vsctl get o . external_ids:ovn-remote | sed 's/"//g'`
+OVN_REMOTE=`ovs-vsctl get o . external_ids:ovn-nb | sed 's/"//g'`
 if docker network ls | grep foo 2>&1 >/dev/null; then :; else
   echo "test failed while creating network"
 fi

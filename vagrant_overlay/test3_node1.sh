@@ -1,6 +1,6 @@
 # Multi-host node1
 
-OVN_REMOTE=`ovs-vsctl get o . external_ids:ovn-remote | sed 's/"//g'`
+OVN_REMOTE=`ovs-vsctl get o . external_ids:ovn-nb | sed 's/"//g'`
 
 # Create network foo
 
