@@ -25,9 +25,5 @@ that he plans to run his containers.
 
 For integration of OVN with Docker's libnetwork, read [INSTALL.Docker.md]
 
-For backend tools that works independently of Docker's libnetwork, read
-[backend.md]
-
 [INSTALL.Docker.md]: docs/INSTALL.Docker.md
-[backend.md]: docs/backend.md
 
