@@ -30,6 +30,9 @@ ovs-vsctl set Open_vSwitch . external_ids:ovn-encap-type="geneve"
 
 /usr/share/openvswitch/scripts/ovn-ctl start_controller
 
+ovn-nbctl set-connection ptcp:6641
+ovn-sbctl set-connection ptcp:6642
+
 git clone https://github.com/shettyg/ovn-docker.git
 cd ovn-docker
 cd vagrant_overlay
