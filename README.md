@@ -1,7 +1,7 @@
 Docker drivers for OVN are now part of the Open vSwitch repository. So
 you don't need to look at this repository for Docker and OVN related things.
 
-Please read https://github.com/openvswitch/ovs/blob/master/INSTALL.Docker.md
+Please read http://docs.openvswitch.org/en/latest/howto/docker/
 for all the details.
 
 Integration of OVN with Docker Containers.
@@ -25,5 +25,5 @@ that he plans to run his containers.
 
 For integration of OVN with Docker's libnetwork, read [INSTALL.Docker.md]
 
-[INSTALL.Docker.md]: docs/INSTALL.Docker.md
+[INSTALL.Docker.md]: docs/docker.rst
 
