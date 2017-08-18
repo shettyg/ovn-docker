@@ -31,11 +31,11 @@ Log in to `node2` (`vagrant ssh node2`) and run:
 Ping the ports 
 From node1:
 
-    docker exec -it busybox ping busybox1.foo
+    sudo docker exec -it busybox ping busybox1.foo
 
 From node2:
 
-    docker exec -it busybox1 ping busybox.foo
+    sudo docker exec -it busybox1 ping busybox.foo
 
 To cleanup test3 creations.
 
