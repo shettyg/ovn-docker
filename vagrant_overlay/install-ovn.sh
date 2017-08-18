@@ -1,32 +1,19 @@
-apt-get install -y build-essential fakeroot debhelper \
-                    autoconf automake bzip2 libssl-dev \
-                    openssl graphviz python-all procps \
-                    python-qt4 python-zopeinterface \
-                    python-twisted-conch libtool git dh-autoreconf
+apt-get build-dep dkms
+apt-get install python-six openssl python-pip -y
+pip install --upgrade pip
+pip install flask
 
-
-git clone https://github.com/openvswitch/ovs.git
-cd ovs
-./boot.sh
-./configure --prefix=/usr --localstatedir=/var  --sysconfdir=/etc --enable-ssl --with-linux=/lib/modules/`uname -r`/build
-make -j3 
-make install
-cp debian/openvswitch-switch.init /etc/init.d/openvswitch-switch
-rmmod openvswitch
-modprobe libcrc32c
-modprobe nf_conntrack_ipv6
-modprobe nf_nat_ipv6
-modprobe gre
-insmod ./datapath/linux/openvswitch.ko
-insmod ./datapath/linux/vport-geneve.ko
-cp -rf ./python/ovs /usr/local/lib/python2.7/dist-packages/.
-/etc/init.d/openvswitch-switch start
-/usr/share/openvswitch/scripts/ovn-ctl start_northd
+apt-get install openvswitch-datapath-dkms=2.7.0-1 -y
+apt-get install openvswitch-switch=2.7.0-1 openvswitch-common=2.7.0-1 \
+    python-openvswitch=2.7.0-1 -y
 
 ovs-vsctl set Open_vSwitch . external_ids:ovn-remote="tcp:$1:6642"
 ovs-vsctl set Open_vSwitch . external_ids:ovn-nb="tcp:$1:6641"
 ovs-vsctl set Open_vSwitch . external_ids:ovn-encap-ip="$2"
 ovs-vsctl set Open_vSwitch . external_ids:ovn-encap-type="geneve"
+
+apt-get install ovn-central=2.7.0-1 ovn-common=2.7.0-1 ovn-host=2.7.0-1 \
+    ovn-docker=2.7.0-1 -y
 
 /usr/share/openvswitch/scripts/ovn-ctl start_controller
 
@@ -41,10 +28,5 @@ cp *.sh /usr/local/bin
 sh /usr/local/bin/clean_all.sh
 
 mkdir -p /etc/docker/plugins
-
-# Pulling in the world to make it run...
-apt-get install -y python-dev python-setuptools
-easy_install -U pip
-pip install flask
 
 ovn-docker-overlay-driver  --detach
